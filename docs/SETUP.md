@@ -59,7 +59,7 @@ Row Level Security is what keeps the data private.
 
 KeretaKu signs in with **email + password** — no emails involved, so nothing to rate-limit. The one
 thing to switch off is Supabase's default "confirm your email before you can sign in" step, since
-that step *does* send an email:
+that step _does_ send an email:
 
 In Supabase: **Authentication → Sign In / Providers → Email** → turn **Confirm email** off → Save.
 

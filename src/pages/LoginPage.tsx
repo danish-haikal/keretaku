@@ -78,7 +78,10 @@ export function LoginPage() {
                 />
               )}
             </Field>
-            <Field label="Password" hint={mode === 'sign-up' ? 'At least 6 characters.' : undefined}>
+            <Field
+              label="Password"
+              hint={mode === 'sign-up' ? 'At least 6 characters.' : undefined}
+            >
               {(id) => (
                 <TextInput
                   id={id}
