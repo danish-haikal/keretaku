@@ -1,0 +1,108 @@
+/* =====================================================================
+   KeretaKu design tokens
+   Light palette on :root; dark redefines the same names so components
+   never reference a colour directly.
+   ===================================================================== */
+:root {
+  --bg: #f5f3ef;
+  --bg-soft: #fbf9f6;
+  --surface: #ffffff;
+  --surface-alt: #fceee3;
+  --text: #2b2420;
+  --text-muted: #8a7c71;
+  --border: #ebe3da;
+
+  --primary: #ef6c37;
+  --primary-ink: #ffffff;
+  --primary-soft: #fde4d6;
+  --secondary: #2e7d6b;
+  --secondary-soft: #dceee8;
+
+  --success: #2f9e63;
+  --success-soft: #dff3e7;
+  --warning: #c98a1f;
+  --warning-soft: #fbebd0;
+  --danger: #d64a3b;
+  --danger-soft: #fbe1dd;
+
+  --hero-petrol: linear-gradient(135deg, #f2924e 0%, #c8511f 100%);
+  --hero-electric: linear-gradient(135deg, #2e7d6b 0%, #1f5c4f 100%);
+
+  --shadow: 0 10px 30px -12px rgb(43 36 32 / 18%);
+  --shadow-sm: 0 2px 8px -2px rgb(43 36 32 / 12%);
+
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+
+  --font-display: 'Baloo 2', ui-rounded, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --nav-height: 62px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #1c1815;
+    --bg-soft: #221d19;
+    --surface: #2a2420;
+    --surface-alt: #3a2a20;
+    --text: #f4ede6;
+    --text-muted: #b3a296;
+    --border: #3c332c;
+
+    --primary: #ff8a5b;
+    --primary-ink: #241407;
+    --primary-soft: #4a2e1e;
+    --secondary: #5bc1a6;
+    --secondary-soft: #1f3b34;
+
+    --success: #5cc98a;
+    --success-soft: #1e3a2a;
+    --warning: #f0bb5e;
+    --warning-soft: #3e3120;
+    --danger: #ff7a67;
+    --danger-soft: #3e241f;
+
+    --shadow: 0 10px 30px -12px rgb(0 0 0 / 50%);
+    --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 40%);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #1c1815;
+  --bg-soft: #221d19;
+  --surface: #2a2420;
+  --surface-alt: #3a2a20;
+  --text: #f4ede6;
+  --text-muted: #b3a296;
+  --border: #3c332c;
+
+  --primary: #ff8a5b;
+  --primary-ink: #241407;
+  --primary-soft: #4a2e1e;
+  --secondary: #5bc1a6;
+  --secondary-soft: #1f3b34;
+
+  --success: #5cc98a;
+  --success-soft: #1e3a2a;
+  --warning: #f0bb5e;
+  --warning-soft: #3e3120;
+  --danger: #ff7a67;
+  --danger-soft: #3e241f;
+
+  --shadow: 0 10px 30px -12px rgb(0 0 0 / 50%);
+  --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 40%);
+
+  color-scheme: dark;
+}

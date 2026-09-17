@@ -1,0 +1,10 @@
+{
+  "name": "KeretaKu",
+  "short_name": "KeretaKu",
+  "description": "Service records and reminders for every car in the house.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F3EF",
+  "theme_color": "#EF6C37",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

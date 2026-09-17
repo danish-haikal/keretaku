@@ -1,0 +1,41 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: none;
+  border-radius: 100px;
+  padding: 9px 15px;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.primary {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+
+.danger {
+  background: transparent;
+  border: 1.5px solid var(--danger-soft);
+  color: var(--danger);
+}
+
+.block {
+  width: 100%;
+  padding: 13px;
+  font-size: 14.5px;
+}

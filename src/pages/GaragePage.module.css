@@ -1,0 +1,26 @@
+.nudge {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: var(--space-4);
+}
+
+.fabWrap {
+  position: absolute;
+  right: var(--space-4);
+  bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+}
+
+.fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: var(--primary-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
