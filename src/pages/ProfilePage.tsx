@@ -90,7 +90,7 @@ export function ProfilePage() {
           </Button>
         </section>
 
-        <p className={styles.version}>KeretaKu v0.1</p>
+        <p className={styles.version}>KeretaKu v{__APP_VERSION__}</p>
       </div>
 
       <Sheet

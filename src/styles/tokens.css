@@ -46,7 +46,25 @@
 
   --nav-height: 62px;
 
+  /* App shell width. Mobile-first: a single centered column, same as a
+     phone. Widened at larger breakpoints (below) so a laptop/desktop
+     browser isn't just a stretched-out phone view with huge empty
+     margins on both sides. */
+  --page-max-width: 520px;
+
   color-scheme: light;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-max-width: 720px;
+  }
+}
+
+@media (min-width: 1200px) {
+  :root {
+    --page-max-width: 880px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

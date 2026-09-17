@@ -2,7 +2,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  max-width: 520px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
   background: var(--bg);
   position: relative;

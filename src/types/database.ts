@@ -91,14 +91,16 @@ export interface ServiceLogItem {
   service_log_id: string;
   name: string;
   price: number;
+  /** One of the fixed category presets (e.g. "Aircond Service"), or null for items logged before categories existed — shown as "Other". */
+  category: string | null;
   position: number;
   created_at: string;
 }
 
-/** A service log fetched together with its line items (name + price). */
+/** A service log fetched together with its line items (name + price + category). */
 export type ServiceLogWithItems = ServiceLog & { service_log_items: ServiceLogItem[] };
 
-export type ServiceLogItemInput = { name: string; price: number };
+export type ServiceLogItemInput = { name: string; price: number; category: string | null };
 
 export type ServiceLogInput = Omit<ServiceLog, 'id' | 'created_at'> & {
   items: ServiceLogItemInput[];

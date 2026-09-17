@@ -8,6 +8,26 @@
       content="KeretaKu — service records and reminders for every car in the house."
     />
     <meta name="theme-color" content="#EF6C37" />
+    <!--
+      Apply the saved theme (if any) before any CSS paints. Without this,
+      the page always starts in whatever the OS/browser prefers and only
+      switches to the saved "Light"/"Dark" choice once ProfilePage mounts
+      and its useTheme() effect runs — which looked like light/dark mode
+      being "inconsistent" between pages and after a refresh. This script
+      must stay in sync with src/hooks/useTheme.ts's STORAGE_KEY.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('keretaku-theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch {
+          /* private mode or blocked storage — falls back to system preference */
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

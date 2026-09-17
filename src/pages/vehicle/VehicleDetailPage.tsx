@@ -31,7 +31,6 @@ export function VehicleDetailPage() {
   const updateVehicle = useUpdateVehicle(vehicleId);
 
   const [tab, setTab] = useState<VehicleTab | null>(null);
-  const [search, setSearch] = useState('');
   const [odoSheetOpen, setOdoSheetOpen] = useState(false);
   const [odoDraft, setOdoDraft] = useState('');
   const [dateField, setDateField] = useState<DateField | null>(null);
@@ -48,17 +47,6 @@ export function VehicleDetailPage() {
 
   const tabs = useMemo(() => (vehicle ? tabsForFuelType(vehicle.fuel_type) : []), [vehicle]);
   const activeTab: VehicleTab = tab ?? tabs[0]?.id ?? 'service';
-
-  const filteredServices = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const logs = serviceLogs.data ?? [];
-    if (!q) return logs;
-    return logs.filter(
-      (l) =>
-        serviceLogTitle(l).toLowerCase().includes(q) ||
-        (l.workshop ?? '').toLowerCase().includes(q),
-    );
-  }, [serviceLogs.data, search]);
 
   if (isPending) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
@@ -195,16 +183,6 @@ export function VehicleDetailPage() {
                 Log service
               </Button>
             </div>
-            <div className={styles.search}>
-              <Icon name="search" size={16} />
-              <input
-                type="search"
-                value={search}
-                placeholder="Search items e.g. battery, oil filter…"
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Search service history"
-              />
-            </div>
             {serviceLogs.isPending && <LoadingState />}
             {serviceLogs.data?.length === 0 && (
               <EmptyState
@@ -213,11 +191,8 @@ export function VehicleDetailPage() {
                 description="Tap 'Log service' to record your first maintenance entry."
               />
             )}
-            {serviceLogs.data && serviceLogs.data.length > 0 && filteredServices.length === 0 && (
-              <EmptyState icon="search" title="No matches" description="Try a different search." />
-            )}
             <div className={page.list}>
-              {filteredServices.map((log) => (
+              {(serviceLogs.data ?? []).map((log) => (
                 <ListRow
                   key={log.id}
                   icon="wrench"

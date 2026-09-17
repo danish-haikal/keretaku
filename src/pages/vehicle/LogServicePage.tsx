@@ -28,8 +28,9 @@ type NextMode = (typeof NEXT_MODES)[number];
 const KM_STEPS = [5000, 10000, 20000];
 const MONTH_STEPS = [3, 6, 12];
 
-/** Tapping a package quick-adds one item row named after it. */
-const PACKAGE_PRESETS = [
+/** Fixed category presets. Tapping one adds an (empty) category section
+ * you then add items under — it is NOT itself an item. */
+const CATEGORY_PRESETS = [
   'Basic Service',
   'Major Service',
   'Brake Service',
@@ -37,7 +38,8 @@ const PACKAGE_PRESETS = [
   'Aircond Service',
 ] as const;
 
-/** Common item names, for quickly adding a row without typing. */
+/** Common item names, for quickly adding an item without typing — shown
+ * inside every category section. */
 const ITEM_NAME_CHIPS = [
   'Oil',
   'Filter',
@@ -49,10 +51,41 @@ const ITEM_NAME_CHIPS = [
   'Labour',
 ] as const;
 
+/** Label for items saved before categories existed (category = null). */
+const OTHER_CATEGORY_LABEL = 'Other';
+
 interface ItemRow {
   key: string;
   name: string;
   price: string;
+}
+
+interface CategoryGroup {
+  key: string;
+  name: string;
+  /** True only for the fallback group holding pre-existing category-less items. */
+  isOther: boolean;
+  items: ItemRow[];
+}
+
+function buildInitialCategories(log: ServiceLogWithItems | null): CategoryGroup[] {
+  if (!log) return [];
+  const order: string[] = [];
+  const groups = new Map<string, CategoryGroup>();
+  for (const item of log.service_log_items) {
+    const groupKey = item.category ?? '__other__';
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        key: groupKey,
+        name: item.category ?? OTHER_CATEGORY_LABEL,
+        isOther: !item.category,
+        items: [],
+      });
+      order.push(groupKey);
+    }
+    groups.get(groupKey)!.items.push({ key: item.id, name: item.name, price: String(item.price) });
+  }
+  return order.map((key) => groups.get(key)!);
 }
 
 function nextModeFor(log: ServiceLogWithItems | null): NextMode {
@@ -103,11 +136,7 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
 
   const [servicedOn, setServicedOn] = useState(log?.serviced_on ?? todayIso());
   const [odometer, setOdometer] = useState(log?.odometer_km != null ? String(log.odometer_km) : '');
-  const [items, setItems] = useState<ItemRow[]>(() =>
-    log && log.service_log_items.length > 0
-      ? log.service_log_items.map((i) => ({ key: i.id, name: i.name, price: String(i.price) }))
-      : [{ key: 'new-0', name: '', price: '' }],
-  );
+  const [categories, setCategories] = useState<CategoryGroup[]>(() => buildInitialCategories(log));
   const [workshop, setWorkshop] = useState(log?.workshop ?? '');
   const [notes, setNotes] = useState(log?.notes ?? '');
   const [nextMode, setNextMode] = useState<NextMode>(nextModeFor(log));
@@ -123,18 +152,53 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
   const showKm = nextMode === 'By km' || nextMode === 'Both';
   const showDate = nextMode === 'By date' || nextMode === 'Both';
 
-  const total = items.reduce((sum, row) => sum + (parseNumberInput(row.price) ?? 0), 0);
+  const total = categories.reduce(
+    (sum, cat) => sum + cat.items.reduce((s, row) => s + (parseNumberInput(row.price) ?? 0), 0),
+    0,
+  );
 
-  function addItem(name = '') {
-    setItems((prev) => [...prev, { key: newKey(), name, price: '' }]);
+  function addCategory(name: string) {
+    setCategories((prev) =>
+      prev.some((c) => c.name === name)
+        ? prev
+        : [...prev, { key: newKey(), name, isOther: false, items: [] }],
+    );
   }
 
-  function updateItem(key: string, patch: Partial<Pick<ItemRow, 'name' | 'price'>>) {
-    setItems((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  function removeCategory(categoryKey: string) {
+    setCategories((prev) => prev.filter((c) => c.key !== categoryKey));
   }
 
-  function removeItem(key: string) {
-    setItems((prev) => prev.filter((row) => row.key !== key));
+  function addItem(categoryKey: string, name = '') {
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.key === categoryKey
+          ? { ...c, items: [...c.items, { key: newKey(), name, price: '' }] }
+          : c,
+      ),
+    );
+  }
+
+  function updateItem(
+    categoryKey: string,
+    itemKey: string,
+    patch: Partial<Pick<ItemRow, 'name' | 'price'>>,
+  ) {
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.key !== categoryKey
+          ? c
+          : { ...c, items: c.items.map((it) => (it.key === itemKey ? { ...it, ...patch } : it)) },
+      ),
+    );
+  }
+
+  function removeItem(categoryKey: string, itemKey: string) {
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.key !== categoryKey ? c : { ...c, items: c.items.filter((it) => it.key !== itemKey) },
+      ),
+    );
   }
 
   const summaryParts = [
@@ -153,12 +217,18 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
     event.preventDefault();
     setFormError(null);
 
-    const cleanItems = items
-      .map((row) => ({ name: row.name.trim(), price: parseNumberInput(row.price) ?? 0 }))
-      .filter((row) => row.name !== '');
+    const cleanItems = categories.flatMap((cat) =>
+      cat.items
+        .map((row) => ({
+          name: row.name.trim(),
+          price: parseNumberInput(row.price) ?? 0,
+          category: cat.isOther ? null : cat.name,
+        }))
+        .filter((row) => row.name !== ''),
+    );
 
     if (cleanItems.length === 0) {
-      setFormError('Add at least one item, e.g. engine oil.');
+      setFormError('Choose a category above, then add at least one item, e.g. engine oil.');
       return;
     }
 
@@ -253,66 +323,104 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
         <section className={styles.itemsCard}>
           <header className={styles.itemsHead}>
             <div className={styles.nextTitle}>Parts &amp; items</div>
-            <div className={styles.nextHint}>Quick add with preset, fill in the price, done!</div>
+            <div className={styles.nextHint}>Pick a category, then add items with a price.</div>
           </header>
 
           <div className={styles.presetsRow}>
-            <QuickPills
-              options={PACKAGE_PRESETS.map((preset) => ({
-                label: preset,
-                onClick: () => addItem(preset),
-              }))}
-            />
+            {CATEGORY_PRESETS.map((preset) => {
+              const added = categories.some((c) => c.name === preset);
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-pressed={added}
+                  disabled={added}
+                  className={`${styles.categoryChip} ${added ? styles.categoryChipActive : ''}`}
+                  onClick={() => addCategory(preset)}
+                >
+                  {added && <Icon name="check" size={12} />}
+                  {preset}
+                </button>
+              );
+            })}
           </div>
 
-          <div className={styles.itemRows}>
-            {items.map((row) => (
-              <div className={styles.itemRow} key={row.key}>
-                <TextInput
-                  aria-label="Item name"
-                  placeholder="Item name — e.g. Engine Oil"
-                  value={row.name}
-                  onChange={(e) => updateItem(row.key, { name: e.target.value })}
-                  className={styles.itemName}
-                />
-                <TextInput
-                  aria-label="Item price"
-                  type="number"
-                  step="0.01"
-                  inputMode="decimal"
-                  placeholder="RM 0.00"
-                  value={row.price}
-                  onChange={(e) => updateItem(row.key, { price: e.target.value })}
-                  className={styles.itemPrice}
-                />
-                <IconButton
-                  icon="trash"
-                  label="Remove this item"
-                  variant="ghost"
-                  onClick={() => removeItem(row.key)}
-                />
+          {categories.length === 0 && (
+            <p className={styles.itemsEmptyHint}>Choose a category above to start adding items.</p>
+          )}
+
+          <div className={styles.categoryList}>
+            {categories.map((cat) => (
+              <div className={styles.categoryGroup} key={cat.key}>
+                <div className={styles.categoryGroupHead}>
+                  <span className={styles.categoryGroupName}>{cat.name}</span>
+                  <IconButton
+                    icon="trash"
+                    label={`Remove ${cat.name} and its items`}
+                    variant="ghost"
+                    onClick={() => removeCategory(cat.key)}
+                  />
+                </div>
+
+                {cat.items.length > 0 && (
+                  <div className={styles.itemRows}>
+                    {cat.items.map((row) => (
+                      <div className={styles.itemRow} key={row.key}>
+                        <TextInput
+                          aria-label="Item name"
+                          placeholder="Item name — e.g. Engine Oil"
+                          value={row.name}
+                          onChange={(e) => updateItem(cat.key, row.key, { name: e.target.value })}
+                          className={styles.itemName}
+                        />
+                        <TextInput
+                          aria-label="Item price"
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          placeholder="RM 0.00"
+                          value={row.price}
+                          onChange={(e) => updateItem(cat.key, row.key, { price: e.target.value })}
+                          className={styles.itemPrice}
+                        />
+                        <IconButton
+                          icon="trash"
+                          label="Remove this item"
+                          variant="ghost"
+                          onClick={() => removeItem(cat.key, row.key)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className={styles.chipsRow}>
+                  <QuickPills
+                    options={ITEM_NAME_CHIPS.map((name) => ({
+                      label: name,
+                      onClick: () => addItem(cat.key, name),
+                    }))}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className={styles.addItemButton}
+                  onClick={() => addItem(cat.key)}
+                >
+                  <Icon name="plus" size={14} />
+                  Add item
+                </button>
               </div>
             ))}
           </div>
 
-          <div className={styles.chipsRow}>
-            <QuickPills
-              options={ITEM_NAME_CHIPS.map((name) => ({
-                label: name,
-                onClick: () => addItem(name),
-              }))}
-            />
-          </div>
-
-          <button type="button" className={styles.addItemButton} onClick={() => addItem()}>
-            <Icon name="plus" size={14} />
-            Add another item
-          </button>
-
-          <div className={styles.itemsTotal}>
-            <span>Total</span>
-            <span className="num">{formatRM(total)}</span>
-          </div>
+          {categories.length > 0 && (
+            <div className={styles.itemsTotal}>
+              <span>Total</span>
+              <span className="num">{formatRM(total)}</span>
+            </div>
+          )}
         </section>
 
         <Field label="Notes (optional)">

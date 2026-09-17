@@ -13,6 +13,7 @@ export type IconName =
   | 'chevron-left'
   | 'close'
   | 'plus'
+  | 'check'
   | 'edit'
   | 'trash'
   | 'search'
@@ -88,6 +89,10 @@ const ICONS: Record<IconName, Path> = {
   plus: {
     viewBox: '0 0 24 24',
     content: <path {...stroke} d="M12 5v14M5 12h14" />,
+  },
+  check: {
+    viewBox: '0 0 24 24',
+    content: <path {...stroke} d="M4 12.5 9.5 18 20 6" />,
   },
   edit: {
     viewBox: '0 0 24 24',
