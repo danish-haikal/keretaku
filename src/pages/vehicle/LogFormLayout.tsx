@@ -13,6 +13,7 @@ interface LogFormLayoutProps {
   tone?: 'primary' | 'secondary';
   onSubmit: (event: React.FormEvent) => void;
   children: ReactNode;
+  headerActions?: ReactNode;
 }
 
 /** Shared chrome for the three log forms: header, vehicle card, form body. */
@@ -23,10 +24,11 @@ export function LogFormLayout({
   tone = 'primary',
   onSubmit,
   children,
+  headerActions,
 }: LogFormLayoutProps) {
   return (
     <div className={styles.page}>
-      <PageHeader title={title} backTo={`/vehicles/${vehicle.id}`} />
+      <PageHeader title={title} backTo={`/vehicles/${vehicle.id}`} actions={headerActions} />
       <form className={page.body} onSubmit={onSubmit}>
         <div className={styles.vehicleCard}>
           <span className={`${styles.icon} ${styles[tone]}`}>

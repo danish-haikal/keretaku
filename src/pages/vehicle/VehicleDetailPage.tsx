@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useChargingLogs, useFuelLogs, useServiceLogs } from '@/api/logs';
 import { useUpdateVehicle, useVehicle } from '@/api/vehicles';
 import page from '@/components/layout/Page.module.css';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, TextInput } from '@/components/ui/Field';
@@ -117,7 +118,7 @@ export function VehicleDetailPage() {
                 <ListRow
                   key={log.id}
                   icon="fuel"
-                  title={`${log.litres} L${log.station ? ` · ${log.station}` : ''}`}
+                  title={`${log.litres} L${log.grade ? ` · ${log.grade}` : ''}${log.station ? ` · ${log.station}` : ''}`}
                   meta={
                     <>
                       {formatDate(log.logged_on)}
@@ -129,7 +130,10 @@ export function VehicleDetailPage() {
                       )}
                     </>
                   }
+                  footer={log.budi_madani ? <Badge urgency="neutral">BUDI Madani</Badge> : null}
                   trailing={formatRM(log.total_cost)}
+                  chevron
+                  onClick={() => navigate(`/vehicles/${vehicle.id}/log/fuel/${log.id}`)}
                 />
               ))}
             </div>
@@ -172,6 +176,8 @@ export function VehicleDetailPage() {
                     </>
                   }
                   trailing={formatRM(log.total_cost)}
+                  chevron
+                  onClick={() => navigate(`/vehicles/${vehicle.id}/log/charging/${log.id}`)}
                 />
               ))}
             </div>
@@ -240,6 +246,8 @@ export function VehicleDetailPage() {
                     ) : null
                   }
                   trailing={formatRM(log.cost)}
+                  chevron
+                  onClick={() => navigate(`/vehicles/${vehicle.id}/log/service/${log.id}`)}
                 />
               ))}
             </div>

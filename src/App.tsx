@@ -31,8 +31,11 @@ export function App() {
       <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
       <Route path="/vehicles/:vehicleId/edit" element={<VehicleFormPage />} />
       <Route path="/vehicles/:vehicleId/log/fuel" element={<LogFuelPage />} />
+      <Route path="/vehicles/:vehicleId/log/fuel/:logId" element={<LogFuelPage />} />
       <Route path="/vehicles/:vehicleId/log/charging" element={<LogChargingPage />} />
+      <Route path="/vehicles/:vehicleId/log/charging/:logId" element={<LogChargingPage />} />
       <Route path="/vehicles/:vehicleId/log/service" element={<LogServicePage />} />
+      <Route path="/vehicles/:vehicleId/log/service/:logId" element={<LogServicePage />} />
 
       <Route path="/" element={<Navigate to="/garage" replace />} />
       <Route path="*" element={<NotFoundPage />} />

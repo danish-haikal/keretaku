@@ -12,6 +12,9 @@ export type FuelType = (typeof FUEL_TYPES)[number];
 
 export type CurrentType = 'AC' | 'DC';
 
+export const FUEL_GRADES = ['RON95', 'RON97', 'Diesel'] as const;
+export type FuelGrade = (typeof FUEL_GRADES)[number];
+
 export interface Household {
   id: string;
   name: string;
@@ -45,6 +48,8 @@ export interface FuelLog {
   litres: number;
   total_cost: number;
   station: string | null;
+  grade: FuelGrade | null;
+  budi_madani: boolean;
   is_full_tank: boolean;
   notes: string | null;
   created_at: string;
