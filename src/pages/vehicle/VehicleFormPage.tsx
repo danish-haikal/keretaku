@@ -6,6 +6,7 @@ import page from '@/components/layout/Page.module.css';
 import { Button } from '@/components/ui/Button';
 import { ChipSelect, type ChipOption } from '@/components/ui/ChipSelect';
 import { Field, FieldRow, TextInput } from '@/components/ui/Field';
+import { Sheet } from '@/components/ui/Sheet';
 import { ErrorState, LoadingState } from '@/components/ui/StateMessage';
 import { useToast } from '@/hooks/useToast';
 import { cleanText } from '@/lib/format';
@@ -66,6 +67,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [insurance, setInsurance] = useState(vehicle?.insurance_expiry ?? '');
   const [odometer, setOdometer] = useState(String(vehicle?.odometer_km ?? 0));
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -111,10 +113,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
 
   async function handleDelete() {
     if (!vehicle) return;
-    const confirmed = window.confirm(
-      'Delete this vehicle? Its fuel, charging and service records will be deleted too.',
-    );
-    if (!confirmed) return;
     await deleteVehicle.mutateAsync(vehicle.id);
     showToast('Vehicle deleted');
     navigate('/garage');
@@ -251,12 +249,31 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
 
         {vehicle && (
           <div className={styles.deleteWrap}>
-            <Button type="button" variant="danger" block onClick={() => void handleDelete()}>
+            <Button type="button" variant="danger" block onClick={() => setConfirmingDelete(true)}>
               Delete vehicle
             </Button>
           </div>
         )}
       </form>
+
+      {vehicle && (
+        <Sheet
+          open={confirmingDelete}
+          title="Delete this vehicle?"
+          hint="This can't be undone. Its fuel, charging and service records will be deleted too."
+          onClose={() => setConfirmingDelete(false)}
+        >
+          <Button
+            type="button"
+            variant="danger"
+            block
+            onClick={() => void handleDelete()}
+            disabled={deleteVehicle.isPending}
+          >
+            {deleteVehicle.isPending ? 'Deleting…' : 'Delete vehicle'}
+          </Button>
+        </Sheet>
+      )}
     </div>
   );
 }
