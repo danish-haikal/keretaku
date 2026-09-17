@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useCreateFuelLog, useDeleteFuelLog, useFuelLog, useUpdateFuelLog } from '@/api/logs';
+import {
+  useCreateFuelLog,
+  useDeleteFuelLog,
+  useFuelLog,
+  useFuelLogs,
+  useUpdateFuelLog,
+} from '@/api/logs';
 import { useVehicle } from '@/api/vehicles';
 import { Button } from '@/components/ui/Button';
 import { Field, FieldRow, TextArea, TextInput } from '@/components/ui/Field';
@@ -11,12 +17,19 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/hooks/useToast';
 import { todayIso } from '@/lib/dates';
-import { cleanText, parseNumberInput } from '@/lib/format';
+import { cleanText, formatRM, parseNumberInput } from '@/lib/format';
 import { FUEL_GRADES, type FuelGrade, type FuelLog, type Vehicle } from '@/types/database';
 import { LogFormLayout } from './LogFormLayout';
 import styles from './LogFormLayout.module.css';
 
 const STATION_PRESETS = ['Shell', 'Petronas', 'BHP', 'Petron', 'Other'] as const;
+
+/* BUDI Madani (BUDI95) defaults — both prices are user-adjustable because
+ * the market price in particular changes roughly weekly; these are just
+ * sensible starting points, not fixed constants. */
+const BUDI_DEFAULT_SUBSIDY_PRICE = 1.99;
+const BUDI_DEFAULT_MARKET_PRICE = 4.27;
+const BUDI_DEFAULT_MONTHLY_QUOTA = 200;
 
 export function LogFuelPage() {
   const { vehicleId = '', logId } = useParams();
@@ -68,7 +81,29 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  const [budiSubsidyPrice, setBudiSubsidyPrice] = useState(String(BUDI_DEFAULT_SUBSIDY_PRICE));
+  const [budiMarketPrice, setBudiMarketPrice] = useState(String(BUDI_DEFAULT_MARKET_PRICE));
+  const [budiQuota, setBudiQuota] = useState(String(BUDI_DEFAULT_MONTHLY_QUOTA));
+
   const saving = createLog.isPending || updateLog.isPending;
+  const showBudiPanel = grade === 'RON95' && budiMadani;
+
+  const vehicleFuelLogs = useFuelLogs(vehicle.id, showBudiPanel);
+  const monthKey = (loggedOn || todayIso()).slice(0, 7);
+  const priorBudiLitresThisMonth = (vehicleFuelLogs.data ?? [])
+    .filter((l) => l.budi_madani && l.id !== log?.id && l.logged_on.slice(0, 7) === monthKey)
+    .reduce((sum, l) => sum + Number(l.litres), 0);
+
+  const budiSubsidyPriceValue = parseNumberInput(budiSubsidyPrice) ?? BUDI_DEFAULT_SUBSIDY_PRICE;
+  const budiMarketPriceValue = parseNumberInput(budiMarketPrice) ?? BUDI_DEFAULT_MARKET_PRICE;
+  const budiQuotaValue = parseNumberInput(budiQuota) ?? BUDI_DEFAULT_MONTHLY_QUOTA;
+  const litresValue = parseNumberInput(litres) ?? 0;
+  const budiQuotaRemaining = Math.max(0, budiQuotaValue - priorBudiLitresThisMonth);
+  const subsidisedLitres = Math.min(litresValue, budiQuotaRemaining);
+  const marketLitres = Math.max(0, litresValue - subsidisedLitres);
+  const budiEstimatedCost =
+    subsidisedLitres * budiSubsidyPriceValue + marketLitres * budiMarketPriceValue;
+  const budiSavings = litresValue * budiMarketPriceValue - budiEstimatedCost;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -230,6 +265,87 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
               label="BUDI Madani"
               hint="Malaysia's targeted RON95 subsidy programme"
             />
+
+            {showBudiPanel && (
+              <div className={styles.budiPanel}>
+                <div className={styles.budiStats}>
+                  <div className={styles.budiStat}>
+                    <span className={`${styles.budiStatValue} num`}>
+                      {subsidisedLitres.toFixed(2)} L
+                    </span>
+                    <span className={styles.budiStatLabel}>Subsidised</span>
+                  </div>
+                  <div className={styles.budiStat}>
+                    <span className={`${styles.budiStatValue} num`}>
+                      {marketLitres.toFixed(2)} L
+                    </span>
+                    <span className={styles.budiStatLabel}>Market rate</span>
+                  </div>
+                  <div className={styles.budiStat}>
+                    <span className={`${styles.budiStatValue} num`}>
+                      {formatRM(budiEstimatedCost)}
+                    </span>
+                    <span className={styles.budiStatLabel}>Est. total</span>
+                  </div>
+                </div>
+
+                {litresValue > 0 && (
+                  <p className={styles.budiNote}>
+                    {budiQuotaRemaining > 0
+                      ? `You have ${budiQuotaRemaining.toFixed(0)} L of quota left this month. `
+                      : 'Your monthly quota is used up — this fill is at market rate. '}
+                    {budiSavings > 0 &&
+                      `Saves ${formatRM(budiSavings)} versus paying full market price.`}
+                  </p>
+                )}
+
+                <div className={styles.budiRates}>
+                  <label className={styles.budiRateField}>
+                    Subsidy price (RM/L)
+                    <TextInput
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={budiSubsidyPrice}
+                      onChange={(e) => setBudiSubsidyPrice(e.target.value)}
+                    />
+                  </label>
+                  <label className={styles.budiRateField}>
+                    Market price (RM/L)
+                    <TextInput
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={budiMarketPrice}
+                      onChange={(e) => setBudiMarketPrice(e.target.value)}
+                    />
+                  </label>
+                  <label className={styles.budiRateField}>
+                    Monthly quota (L)
+                    <TextInput
+                      type="number"
+                      step="1"
+                      inputMode="numeric"
+                      value={budiQuota}
+                      onChange={(e) => setBudiQuota(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className={styles.budiHint}>
+                  Market price changes roughly weekly — adjust it here if it&apos;s out of date.
+                </p>
+
+                {litresValue > 0 && (
+                  <button
+                    type="button"
+                    className={styles.budiApply}
+                    onClick={() => setCost(budiEstimatedCost.toFixed(2))}
+                  >
+                    Use {formatRM(budiEstimatedCost)} as total cost
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

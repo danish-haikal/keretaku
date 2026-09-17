@@ -26,6 +26,11 @@ export function formatDate(iso: string | null | undefined): string {
   return dateFormatter.format(parseIsoDate(iso));
 }
 
+/** Display label for a multi-item service visit: its item names, joined. */
+export function serviceLogTitle(log: { service_log_items: { name: string }[] }): string {
+  return log.service_log_items.map((i) => i.name).join(', ') || 'Service';
+}
+
 export function vehicleTitle(v: { year: number; make: string; model: string }): string {
   return `${v.year} ${v.make} ${v.model}`;
 }

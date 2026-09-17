@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   useCreateServiceLog,
@@ -16,8 +16,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { ErrorState, LoadingState } from '@/components/ui/StateMessage';
 import { useToast } from '@/hooks/useToast';
 import { addMonths, todayIso } from '@/lib/dates';
-import { cleanText, formatDate, formatKm, parseNumberInput } from '@/lib/format';
-import type { ServiceLog, Vehicle } from '@/types/database';
+import { cleanText, formatDate, formatKm, formatRM, parseNumberInput } from '@/lib/format';
+import type { ServiceLogWithItems, Vehicle } from '@/types/database';
 import { LogFormLayout } from './LogFormLayout';
 import layout from './LogFormLayout.module.css';
 import styles from './LogServicePage.module.css';
@@ -28,7 +28,34 @@ type NextMode = (typeof NEXT_MODES)[number];
 const KM_STEPS = [5000, 10000, 20000];
 const MONTH_STEPS = [3, 6, 12];
 
-function nextModeFor(log: ServiceLog | null): NextMode {
+/** Tapping a package quick-adds one item row named after it. */
+const PACKAGE_PRESETS = [
+  'Basic Service',
+  'Major Service',
+  'Brake Service',
+  'Tyre & Battery',
+  'Aircond Service',
+] as const;
+
+/** Common item names, for quickly adding a row without typing. */
+const ITEM_NAME_CHIPS = [
+  'Oil',
+  'Filter',
+  'Brake',
+  'Tyre',
+  'Belt',
+  'Battery',
+  'Aircond',
+  'Labour',
+] as const;
+
+interface ItemRow {
+  key: string;
+  name: string;
+  price: string;
+}
+
+function nextModeFor(log: ServiceLogWithItems | null): NextMode {
   if (!log) return 'Both';
   const hasKm = log.next_due_km != null;
   const hasDate = !!log.next_due_date;
@@ -60,7 +87,7 @@ export function LogServicePage() {
   );
 }
 
-function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | null }) {
+function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWithItems | null }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const createLog = useCreateServiceLog();
@@ -68,11 +95,20 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
   const deleteLog = useDeleteServiceLog();
   const isEditing = log != null;
 
+  const keyCounter = useRef(0);
+  function newKey(): string {
+    keyCounter.current += 1;
+    return `new-${keyCounter.current}`;
+  }
+
   const [servicedOn, setServicedOn] = useState(log?.serviced_on ?? todayIso());
   const [odometer, setOdometer] = useState(log?.odometer_km != null ? String(log.odometer_km) : '');
-  const [item, setItem] = useState(log?.item ?? '');
+  const [items, setItems] = useState<ItemRow[]>(() =>
+    log && log.service_log_items.length > 0
+      ? log.service_log_items.map((i) => ({ key: i.id, name: i.name, price: String(i.price) }))
+      : [{ key: 'new-0', name: '', price: '' }],
+  );
   const [workshop, setWorkshop] = useState(log?.workshop ?? '');
-  const [cost, setCost] = useState(log ? String(log.cost) : '');
   const [notes, setNotes] = useState(log?.notes ?? '');
   const [nextMode, setNextMode] = useState<NextMode>(nextModeFor(log));
   const [nextKm, setNextKm] = useState(log?.next_due_km != null ? String(log.next_due_km) : '');
@@ -87,6 +123,20 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
   const showKm = nextMode === 'By km' || nextMode === 'Both';
   const showDate = nextMode === 'By date' || nextMode === 'Both';
 
+  const total = items.reduce((sum, row) => sum + (parseNumberInput(row.price) ?? 0), 0);
+
+  function addItem(name = '') {
+    setItems((prev) => [...prev, { key: newKey(), name, price: '' }]);
+  }
+
+  function updateItem(key: string, patch: Partial<Pick<ItemRow, 'name' | 'price'>>) {
+    setItems((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  function removeItem(key: string) {
+    setItems((prev) => prev.filter((row) => row.key !== key));
+  }
+
   const summaryParts = [
     showKm && nextKm ? `at ${formatKm(Number(nextKm))}` : null,
     showDate && nextDate ? `by ${formatDate(nextDate)}` : null,
@@ -94,7 +144,7 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
 
   const summary =
     nextMode === 'Skip'
-      ? 'No reminder will be set for this item.'
+      ? 'No reminder will be set for this visit.'
       : summaryParts.length > 0
         ? `Reminder: next service ${summaryParts.join(' or ')}.`
         : 'Pick a quick option or type a value.';
@@ -103,8 +153,12 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
     event.preventDefault();
     setFormError(null);
 
-    if (!item.trim()) {
-      setFormError('Enter what was done, e.g. engine oil.');
+    const cleanItems = items
+      .map((row) => ({ name: row.name.trim(), price: parseNumberInput(row.price) ?? 0 }))
+      .filter((row) => row.name !== '');
+
+    if (cleanItems.length === 0) {
+      setFormError('Add at least one item, e.g. engine oil.');
       return;
     }
 
@@ -112,12 +166,12 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
       vehicle_id: vehicle.id,
       serviced_on: baseDate,
       odometer_km: parseNumberInput(odometer),
-      item: item.trim(),
       workshop: cleanText(workshop),
-      cost: parseNumberInput(cost) ?? 0,
+      cost: cleanItems.reduce((sum, row) => sum + row.price, 0),
       notes: cleanText(notes),
       next_due_km: showKm ? parseNumberInput(nextKm) : null,
       next_due_date: showDate && nextDate ? nextDate : null,
+      items: cleanItems,
     };
 
     try {
@@ -184,18 +238,6 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
           </Field>
         </FieldRow>
 
-        <Field label="Item / category">
-          {(id) => (
-            <TextInput
-              id={id}
-              required
-              placeholder="e.g. Engine oil, brake pads…"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
-            />
-          )}
-        </Field>
-
         <Field label="Workshop">
           {(id) => (
             <TextInput
@@ -207,25 +249,77 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
           )}
         </Field>
 
-        <Field label="Cost (RM)">
-          {(id) => (
-            <TextInput
-              id={id}
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
+        {/* ---------- Parts & items ---------- */}
+        <section className={styles.itemsCard}>
+          <header className={styles.itemsHead}>
+            <div className={styles.nextTitle}>Parts &amp; items</div>
+            <div className={styles.nextHint}>Quick add with preset, fill in the price, done!</div>
+          </header>
+
+          <div className={styles.presetsRow}>
+            <QuickPills
+              options={PACKAGE_PRESETS.map((preset) => ({
+                label: preset,
+                onClick: () => addItem(preset),
+              }))}
             />
-          )}
-        </Field>
+          </div>
+
+          <div className={styles.itemRows}>
+            {items.map((row) => (
+              <div className={styles.itemRow} key={row.key}>
+                <TextInput
+                  aria-label="Item name"
+                  placeholder="Item name — e.g. Engine Oil"
+                  value={row.name}
+                  onChange={(e) => updateItem(row.key, { name: e.target.value })}
+                  className={styles.itemName}
+                />
+                <TextInput
+                  aria-label="Item price"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="RM 0.00"
+                  value={row.price}
+                  onChange={(e) => updateItem(row.key, { price: e.target.value })}
+                  className={styles.itemPrice}
+                />
+                <IconButton
+                  icon="trash"
+                  label="Remove this item"
+                  variant="ghost"
+                  onClick={() => removeItem(row.key)}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.chipsRow}>
+            <QuickPills
+              options={ITEM_NAME_CHIPS.map((name) => ({
+                label: name,
+                onClick: () => addItem(name),
+              }))}
+            />
+          </div>
+
+          <button type="button" className={styles.addItemButton} onClick={() => addItem()}>
+            <Icon name="plus" size={14} />
+            Add another item
+          </button>
+
+          <div className={styles.itemsTotal}>
+            <span>Total</span>
+            <span className="num">{formatRM(total)}</span>
+          </div>
+        </section>
 
         <Field label="Notes (optional)">
           {(id) => (
             <TextArea
               id={id}
-              placeholder="Parts used, warranty, etc."
+              placeholder="Warranty, recommendations, etc."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -314,7 +408,7 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLog | 
       <Sheet
         open={confirmingDelete}
         title="Delete this service record?"
-        hint="This can't be undone. If this was the latest entry for this item, its reminder will also disappear."
+        hint="This can't be undone. If this was the latest visit, its reminder will also disappear."
         onClose={() => setConfirmingDelete(false)}
       >
         <Button

@@ -17,7 +17,7 @@ import { VehicleHero } from '@/components/vehicle/VehicleHero';
 import { VehicleTabs } from '@/components/vehicle/VehicleTabs';
 import { tabsForFuelType, type VehicleTab } from '@/components/vehicle/tabDefinitions';
 import { useToast } from '@/hooks/useToast';
-import { formatDate, formatKm, formatRM } from '@/lib/format';
+import { formatDate, formatKm, formatRM, serviceLogTitle } from '@/lib/format';
 import styles from './VehicleDetailPage.module.css';
 
 type DateField = 'road_tax_expiry' | 'insurance_expiry';
@@ -54,7 +54,9 @@ export function VehicleDetailPage() {
     const logs = serviceLogs.data ?? [];
     if (!q) return logs;
     return logs.filter(
-      (l) => l.item.toLowerCase().includes(q) || (l.workshop ?? '').toLowerCase().includes(q),
+      (l) =>
+        serviceLogTitle(l).toLowerCase().includes(q) ||
+        (l.workshop ?? '').toLowerCase().includes(q),
     );
   }, [serviceLogs.data, search]);
 
@@ -219,7 +221,7 @@ export function VehicleDetailPage() {
                 <ListRow
                   key={log.id}
                   icon="wrench"
-                  title={log.item}
+                  title={serviceLogTitle(log)}
                   meta={
                     <>
                       {formatDate(log.serviced_on)}

@@ -78,7 +78,6 @@ export interface ServiceLog {
   vehicle_id: string;
   serviced_on: string;
   odometer_km: number | null;
-  item: string;
   workshop: string | null;
   cost: number;
   notes: string | null;
@@ -87,7 +86,23 @@ export interface ServiceLog {
   created_at: string;
 }
 
-export type ServiceLogInput = Omit<ServiceLog, 'id' | 'created_at'>;
+export interface ServiceLogItem {
+  id: string;
+  service_log_id: string;
+  name: string;
+  price: number;
+  position: number;
+  created_at: string;
+}
+
+/** A service log fetched together with its line items (name + price). */
+export type ServiceLogWithItems = ServiceLog & { service_log_items: ServiceLogItem[] };
+
+export type ServiceLogItemInput = { name: string; price: number };
+
+export type ServiceLogInput = Omit<ServiceLog, 'id' | 'created_at'> & {
+  items: ServiceLogItemInput[];
+};
 
 export interface MaintenanceReminder {
   service_log_id: string;

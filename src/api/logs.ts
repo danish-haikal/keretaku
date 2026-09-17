@@ -6,9 +6,19 @@ import type {
   ChargingLogInput,
   FuelLog,
   FuelLogInput,
-  ServiceLog,
   ServiceLogInput,
+  ServiceLogWithItems,
 } from '@/types/database';
+
+/** Every service_logs select in this file pulls its items along with it. */
+const SERVICE_LOG_SELECT = '*, service_log_items(*)';
+
+function orderItems(logs: ServiceLogWithItems[]): ServiceLogWithItems[] {
+  for (const log of logs) {
+    log.service_log_items = [...log.service_log_items].sort((a, b) => a.position - b.position);
+  }
+  return logs;
+}
 
 /* ---------- Queries: lists ---------- */
 
@@ -49,15 +59,15 @@ export function useChargingLogs(vehicleId: string, enabled = true) {
 export function useServiceLogs(vehicleId: string) {
   return useQuery({
     queryKey: queryKeys.serviceLogs(vehicleId),
-    queryFn: async (): Promise<ServiceLog[]> => {
+    queryFn: async (): Promise<ServiceLogWithItems[]> => {
       const { data, error } = await supabase
         .from('service_logs')
-        .select('*')
+        .select(SERVICE_LOG_SELECT)
         .eq('vehicle_id', vehicleId)
         .order('serviced_on', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data as ServiceLog[];
+      return orderItems(data as ServiceLogWithItems[]);
     },
   });
 }
@@ -96,14 +106,16 @@ export function useServiceLog(logId?: string) {
   return useQuery({
     queryKey: queryKeys.serviceLog(logId ?? ''),
     enabled: !!logId,
-    queryFn: async (): Promise<ServiceLog> => {
+    queryFn: async (): Promise<ServiceLogWithItems> => {
       const { data, error } = await supabase
         .from('service_logs')
-        .select('*')
+        .select(SERVICE_LOG_SELECT)
         .eq('id', logId)
         .single();
       if (error) throw error;
-      return data as ServiceLog;
+      const log = data as ServiceLogWithItems;
+      log.service_log_items = [...log.service_log_items].sort((a, b) => a.position - b.position);
+      return log;
     },
   });
 }
@@ -189,12 +201,27 @@ export function useDeleteChargingLog() {
   });
 }
 
+/** service_log_items rows for a visit, in display order. */
+function itemRows(serviceLogId: string, items: ServiceLogInput['items']) {
+  return items.map((item, position) => ({ ...item, service_log_id: serviceLogId, position }));
+}
+
 export function useCreateServiceLog() {
   const invalidate = useInvalidateAfterLog();
   return useMutation({
-    mutationFn: async (input: ServiceLogInput) => {
-      const { error } = await supabase.from('service_logs').insert(input);
+    mutationFn: async ({ items, ...input }: ServiceLogInput) => {
+      const { data, error } = await supabase
+        .from('service_logs')
+        .insert(input)
+        .select('id')
+        .single();
       if (error) throw error;
+      if (items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('service_log_items')
+          .insert(itemRows(data.id as string, items));
+        if (itemsError) throw itemsError;
+      }
     },
     onSuccess: (_d, input) => invalidate(input.vehicle_id, queryKeys.serviceLogs(input.vehicle_id)),
   });
@@ -203,9 +230,20 @@ export function useCreateServiceLog() {
 export function useUpdateServiceLog() {
   const invalidate = useInvalidateAfterLog();
   return useMutation({
-    mutationFn: async ({ id, ...input }: ServiceLogInput & { id: string }) => {
+    mutationFn: async ({ id, items, ...input }: ServiceLogInput & { id: string }) => {
       const { error } = await supabase.from('service_logs').update(input).eq('id', id);
       if (error) throw error;
+      const { error: deleteError } = await supabase
+        .from('service_log_items')
+        .delete()
+        .eq('service_log_id', id);
+      if (deleteError) throw deleteError;
+      if (items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('service_log_items')
+          .insert(itemRows(id, items));
+        if (itemsError) throw itemsError;
+      }
     },
     onSuccess: (_d, input) => invalidate(input.vehicle_id, queryKeys.serviceLogs(input.vehicle_id)),
   });
