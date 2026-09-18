@@ -82,3 +82,29 @@ export function useDeleteVehicle() {
     onSuccess: invalidate,
   });
 }
+
+/**
+ * Marks a road tax / insurance reminder dismissed for now, without changing
+ * the expiry date. A DB trigger clears this automatically the moment the
+ * relevant expiry date actually changes, so an old dismissal can't hide a
+ * new deadline.
+ */
+export function useDismissRenewalReminder() {
+  const invalidate = useInvalidateVehicles();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      field,
+    }: {
+      id: string;
+      field: 'road_tax_reminder_dismissed_at' | 'insurance_reminder_dismissed_at';
+    }) => {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ [field]: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}

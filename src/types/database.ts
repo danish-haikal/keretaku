@@ -39,6 +39,8 @@ export interface Vehicle {
   plate_number: string | null;
   road_tax_expiry: string | null;
   insurance_expiry: string | null;
+  road_tax_reminder_dismissed_at: string | null;
+  insurance_reminder_dismissed_at: string | null;
   odometer_km: number;
   rim_type: RimType;
   tyre_pressure_unit: TyrePressureUnit;
@@ -55,7 +57,20 @@ export interface Vehicle {
   updated_at: string;
 }
 
-export type VehicleInput = Omit<Vehicle, 'id' | 'household_id' | 'created_at' | 'updated_at'>;
+/**
+ * road_tax_reminder_dismissed_at / insurance_reminder_dismissed_at are
+ * excluded — they're only ever set via useDismissRenewalReminder(), so
+ * VehicleFormPage's explicit input object never needs to know about them.
+ */
+export type VehicleInput = Omit<
+  Vehicle,
+  | 'id'
+  | 'household_id'
+  | 'created_at'
+  | 'updated_at'
+  | 'road_tax_reminder_dismissed_at'
+  | 'insurance_reminder_dismissed_at'
+>;
 
 export interface FuelLog {
   id: string;
@@ -100,6 +115,7 @@ export interface ServiceLog {
   notes: string | null;
   next_due_km: number | null;
   next_due_date: string | null;
+  reminder_dismissed_at: string | null;
   created_at: string;
 }
 
@@ -119,7 +135,12 @@ export type ServiceLogWithItems = ServiceLog & { service_log_items: ServiceLogIt
 
 export type ServiceLogItemInput = { name: string; price: number; category: string | null };
 
-export type ServiceLogInput = Omit<ServiceLog, 'id' | 'created_at'> & {
+/**
+ * reminder_dismissed_at is excluded — it's only ever set via
+ * useDismissServiceReminder(), so the Log Service form's input shape is
+ * unaffected by this batch.
+ */
+export type ServiceLogInput = Omit<ServiceLog, 'id' | 'created_at' | 'reminder_dismissed_at'> & {
   items: ServiceLogItemInput[];
 };
 

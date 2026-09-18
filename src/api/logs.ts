@@ -259,3 +259,22 @@ export function useDeleteServiceLog() {
     onSuccess: (_d, { vehicleId }) => invalidate(vehicleId, queryKeys.serviceLogs(vehicleId)),
   });
 }
+
+/**
+ * Marks the current reminder as dismissed for now, without logging a new
+ * visit. Superseded automatically the moment a newer service log exists,
+ * since the reminders view only ever looks at each vehicle's latest visit.
+ */
+export function useDismissServiceReminder() {
+  const invalidate = useInvalidateAfterLog();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; vehicleId: string }) => {
+      const { error } = await supabase
+        .from('service_logs')
+        .update({ reminder_dismissed_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, { vehicleId }) => invalidate(vehicleId, queryKeys.serviceLogs(vehicleId)),
+  });
+}

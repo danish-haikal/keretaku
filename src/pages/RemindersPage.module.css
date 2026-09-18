@@ -15,14 +15,25 @@
 
 .card {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  align-items: stretch;
+  gap: var(--space-2);
   width: 100%;
-  text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+}
+
+.cardMain {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
   color: inherit;
   font: inherit;
 }
@@ -81,4 +92,35 @@
 .detail.soon,
 .detail.overdue {
   background-color: transparent;
+}
+
+.sheetActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sheetPrimary {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-weight: 700;
+  font: inherit;
+}
+
+.sheetSecondary {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-weight: 600;
+  font: inherit;
+  color: var(--text-muted);
+}
+
+.sheetPrimary:disabled,
+.sheetSecondary:disabled {
+  opacity: 0.6;
 }

@@ -144,6 +144,11 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
   const [nextDate, setNextDate] = useState(log?.next_due_date ?? '');
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [pendingCategoryDelete, setPendingCategoryDelete] = useState<string | null>(null);
+  const [pendingItemDelete, setPendingItemDelete] = useState<{
+    categoryKey: string;
+    itemKey: string;
+  } | null>(null);
 
   const saving = createLog.isPending || updateLog.isPending;
 
@@ -200,6 +205,13 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
       ),
     );
   }
+
+  const categoryPendingDelete = categories.find((c) => c.key === pendingCategoryDelete) ?? null;
+  const itemPendingDelete = pendingItemDelete
+    ? (categories
+        .find((c) => c.key === pendingItemDelete.categoryKey)
+        ?.items.find((it) => it.key === pendingItemDelete.itemKey) ?? null)
+    : null;
 
   const summaryParts = [
     showKm && nextKm ? `at ${formatKm(Number(nextKm))}` : null,
@@ -263,6 +275,18 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
     await deleteLog.mutateAsync({ id: log.id, vehicleId: vehicle.id });
     showToast('Service record deleted');
     navigate(`/vehicles/${vehicle.id}`);
+  }
+
+  function confirmCategoryDelete() {
+    if (!pendingCategoryDelete) return;
+    removeCategory(pendingCategoryDelete);
+    setPendingCategoryDelete(null);
+  }
+
+  function confirmItemDelete() {
+    if (!pendingItemDelete) return;
+    removeItem(pendingItemDelete.categoryKey, pendingItemDelete.itemKey);
+    setPendingItemDelete(null);
   }
 
   return (
@@ -358,7 +382,7 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
                     icon="trash"
                     label={`Remove ${cat.name} and its items`}
                     variant="ghost"
-                    onClick={() => removeCategory(cat.key)}
+                    onClick={() => setPendingCategoryDelete(cat.key)}
                   />
                 </div>
 
@@ -387,7 +411,9 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
                           icon="trash"
                           label="Remove this item"
                           variant="ghost"
-                          onClick={() => removeItem(cat.key, row.key)}
+                          onClick={() =>
+                            setPendingItemDelete({ categoryKey: cat.key, itemKey: row.key })
+                          }
                         />
                       </div>
                     ))}
@@ -527,6 +553,32 @@ function ServiceLogForm({ vehicle, log }: { vehicle: Vehicle; log: ServiceLogWit
           disabled={deleteLog.isPending}
         >
           {deleteLog.isPending ? 'Deleting…' : 'Delete record'}
+        </Button>
+      </Sheet>
+
+      <Sheet
+        open={pendingCategoryDelete !== null}
+        title={`Remove ${categoryPendingDelete?.name ?? 'this category'}?`}
+        hint={
+          categoryPendingDelete && categoryPendingDelete.items.length > 0
+            ? `This removes all ${categoryPendingDelete.items.length} item(s) in it. This only affects this unsaved form — nothing is deleted until you save.`
+            : 'This only affects this unsaved form — nothing is deleted until you save.'
+        }
+        onClose={() => setPendingCategoryDelete(null)}
+      >
+        <Button type="button" variant="danger" block onClick={confirmCategoryDelete}>
+          Remove category
+        </Button>
+      </Sheet>
+
+      <Sheet
+        open={pendingItemDelete !== null}
+        title={`Remove ${itemPendingDelete?.name.trim() ? itemPendingDelete.name : 'this item'}?`}
+        hint="This only affects this unsaved form — nothing is deleted until you save."
+        onClose={() => setPendingItemDelete(null)}
+      >
+        <Button type="button" variant="danger" block onClick={confirmItemDelete}>
+          Remove item
         </Button>
       </Sheet>
     </>

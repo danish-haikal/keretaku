@@ -37,6 +37,8 @@ export interface ReminderItem {
   kmLeft: number | null;
   /** Lower = sooner. km are converted at ~50 km/day so mixed items sort sensibly. */
   sortKey: number;
+  /** Only present for kind === 'maintenance' — needed to dismiss/log that visit's reminder. */
+  serviceLogId?: string;
 }
 
 const KM_PER_DAY_ESTIMATE = 50;
@@ -84,10 +86,21 @@ export function buildReminderList(
   for (const v of vehicles) {
     const vehicleName = `${v.year} ${v.make} ${v.model}`;
     const renewals = [
-      { kind: 'road_tax' as const, title: 'Road tax renewal', date: v.road_tax_expiry },
-      { kind: 'insurance' as const, title: 'Insurance renewal', date: v.insurance_expiry },
+      {
+        kind: 'road_tax' as const,
+        title: 'Road tax renewal',
+        date: v.road_tax_expiry,
+        dismissedAt: v.road_tax_reminder_dismissed_at,
+      },
+      {
+        kind: 'insurance' as const,
+        title: 'Insurance renewal',
+        date: v.insurance_expiry,
+        dismissedAt: v.insurance_reminder_dismissed_at,
+      },
     ];
     for (const r of renewals) {
+      if (r.dismissedAt) continue;
       const days = daysUntil(r.date, today);
       if (days == null) continue;
       items.push({
@@ -123,6 +136,7 @@ export function buildReminderList(
       daysLeft: s.daysLeft,
       kmLeft: s.kmLeft,
       sortKey: s.sortKey,
+      serviceLogId: m.service_log_id,
     });
   }
 
