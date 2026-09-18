@@ -97,61 +97,56 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
   const budiSubsidyPriceValue = parseNumberInput(budiSubsidyPrice) ?? BUDI_DEFAULT_SUBSIDY_PRICE;
   const budiMarketPriceValue = parseNumberInput(budiMarketPrice) ?? BUDI_DEFAULT_MARKET_PRICE;
   const budiQuotaValue = parseNumberInput(budiQuota) ?? BUDI_DEFAULT_MONTHLY_QUOTA;
-  const litresValue = parseNumberInput(litres) ?? 0;
   const budiQuotaRemaining = Math.max(0, budiQuotaValue - priorBudiLitresThisMonth);
-  const subsidisedLitres = Math.min(litresValue, budiQuotaRemaining);
-  const marketLitres = Math.max(0, litresValue - subsidisedLitres);
-  const budiEstimatedCost =
-    subsidisedLitres * budiSubsidyPriceValue + marketLitres * budiMarketPriceValue;
-  const budiSavings = litresValue * budiMarketPriceValue - budiEstimatedCost;
 
-  const tankCapacity = vehicle.tank_capacity_liters;
-  const overTankCapacity = tankCapacity != null && litresValue > tankCapacity;
-
-  /** Litres → cost, split at the remaining subsidy quota. Only runs while the BUDI panel is live. */
-  function handleLitresChange(value: string) {
-    setLitres(value);
-    if (!showBudiPanel) return;
-    const L = parseNumberInput(value) ?? 0;
-    if (L <= 0) {
-      setCost('');
-      return;
-    }
-    const subsidised = Math.min(L, budiQuotaRemaining);
-    const market = Math.max(0, L - subsidised);
-    const computedCost = subsidised * budiSubsidyPriceValue + market * budiMarketPriceValue;
-    setCost(computedCost.toFixed(2));
-  }
-
-  /** Cost → litres, the reverse of the above: fully-subsidised up to the quota's worth of cost, then market rate. */
-  function handleCostChange(value: string) {
-    setCost(value);
-    if (!showBudiPanel) return;
-    const C = parseNumberInput(value) ?? 0;
-    if (C <= 0) {
-      setLitres('');
-      return;
-    }
-    const subsidyCapCost = budiQuotaRemaining * budiSubsidyPriceValue;
-    let computedLitres: number;
-    if (C <= subsidyCapCost) {
-      computedLitres = budiSubsidyPriceValue > 0 ? C / budiSubsidyPriceValue : 0;
+  /*
+   * RM is the real input at the pump (you pay the subsidised rate directly,
+   * you don't choose litres). Litres, market value and savings are all
+   * derived FROM the amount paid — same direction as budi95.com's "RM"
+   * mode, but quota-aware: the part of your payment within this vehicle's
+   * remaining monthly quota buys litres at the subsidy price; anything
+   * beyond that buys litres at market price.
+   */
+  const costValue = parseNumberInput(cost) ?? 0;
+  const subsidyCapCost = budiQuotaRemaining * budiSubsidyPriceValue;
+  let budiDerivedLitres = 0;
+  if (costValue > 0) {
+    if (costValue <= subsidyCapCost) {
+      budiDerivedLitres = budiSubsidyPriceValue > 0 ? costValue / budiSubsidyPriceValue : 0;
     } else {
-      const remainder = C - subsidyCapCost;
-      computedLitres =
+      const remainder = costValue - subsidyCapCost;
+      budiDerivedLitres =
         budiQuotaRemaining + (budiMarketPriceValue > 0 ? remainder / budiMarketPriceValue : 0);
     }
-    setLitres(computedLitres.toFixed(2));
+  }
+  const budiSubsidisedLitres = Math.min(budiDerivedLitres, budiQuotaRemaining);
+  const budiMarketLitres = Math.max(0, budiDerivedLitres - budiSubsidisedLitres);
+  const budiMarketValue = budiDerivedLitres * budiMarketPriceValue;
+  const budiSavings = Math.max(0, budiMarketValue - costValue);
+
+  const effectiveLitres = showBudiPanel ? budiDerivedLitres : (parseNumberInput(litres) ?? 0);
+  const tankCapacity = vehicle.tank_capacity_liters;
+  const overTankCapacity = tankCapacity != null && effectiveLitres > tankCapacity;
+
+  function handleBudiToggle(checked: boolean) {
+    if (!checked && budiDerivedLitres > 0) {
+      // Seed the now-editable Litres field with the last computed value,
+      // instead of snapping back to whatever was typed before BUDI was on.
+      setLitres(budiDerivedLitres.toFixed(2));
+    }
+    setBudiMadani(checked);
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
 
-    const litresValue = parseNumberInput(litres);
+    const litresValue = showBudiPanel ? budiDerivedLitres : parseNumberInput(litres);
     const costValue = parseNumberInput(cost);
     if (litresValue == null || litresValue <= 0) {
-      setFormError('Enter how many litres you filled.');
+      setFormError(
+        showBudiPanel ? 'Enter how much you paid.' : 'Enter how many litres you filled.',
+      );
       return;
     }
     if (costValue == null || costValue < 0) {
@@ -269,7 +264,7 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
           <div className={styles.card}>
             <Switch
               checked={budiMadani}
-              onChange={setBudiMadani}
+              onChange={handleBudiToggle}
               label="BUDI Madani"
               hint="Malaysia's targeted RON95 subsidy programme"
             />
@@ -277,8 +272,8 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
             {showBudiPanel && (
               <div className={styles.budiPanel}>
                 <p className={styles.budiHint}>
-                  Enter either Volume or Total below — the other fills in automatically, split
-                  between subsidised and market-rate litres.
+                  Enter what you paid at the pump below (Total) — litres, market value and savings
+                  are all worked out from that.
                 </p>
 
                 <div className={styles.budiRates}>
@@ -322,7 +317,10 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
         )}
 
         <FieldRow>
-          <Field label="Volume (L)">
+          <Field
+            label="Volume (L)"
+            hint={showBudiPanel ? 'Calculated from Total, below' : undefined}
+          >
             {(id) => (
               <TextInput
                 id={id}
@@ -331,8 +329,10 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
                 inputMode="decimal"
                 required
                 placeholder="0.00"
-                value={litres}
-                onChange={(e) => handleLitresChange(e.target.value)}
+                value={showBudiPanel ? (costValue > 0 ? budiDerivedLitres.toFixed(2) : '') : litres}
+                onChange={(e) => setLitres(e.target.value)}
+                readOnly={showBudiPanel}
+                style={showBudiPanel ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
               />
             )}
           </Field>
@@ -346,46 +346,44 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
                 required
                 placeholder="0.00"
                 value={cost}
-                onChange={(e) => handleCostChange(e.target.value)}
+                onChange={(e) => setCost(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
         {overTankCapacity && (
           <p className={styles.warning}>
-            That&apos;s more than this vehicle&apos;s {tankCapacity} L tank — double-check the
-            volume.
+            That&apos;s more than this vehicle&apos;s {tankCapacity} L tank — double-check the{' '}
+            {showBudiPanel ? 'amount paid' : 'volume'}.
           </p>
         )}
 
-        {showBudiPanel && (
+        {showBudiPanel && costValue > 0 && (
           <div className={styles.card}>
             <div className={styles.budiStats}>
               <div className={styles.budiStat}>
                 <span className={`${styles.budiStatValue} num`}>
-                  {subsidisedLitres.toFixed(2)} L
+                  {budiDerivedLitres.toFixed(2)} L
                 </span>
-                <span className={styles.budiStatLabel}>Subsidised</span>
+                <span className={styles.budiStatLabel}>Litres received</span>
               </div>
               <div className={styles.budiStat}>
-                <span className={`${styles.budiStatValue} num`}>{marketLitres.toFixed(2)} L</span>
-                <span className={styles.budiStatLabel}>Market rate</span>
+                <span className={`${styles.budiStatValue} num`}>{formatRM(budiMarketValue)}</span>
+                <span className={styles.budiStatLabel}>Worth at market</span>
               </div>
               <div className={styles.budiStat}>
-                <span className={`${styles.budiStatValue} num`}>{formatRM(budiEstimatedCost)}</span>
-                <span className={styles.budiStatLabel}>Est. total</span>
+                <span className={`${styles.budiStatValue} num`}>{formatRM(budiSavings)}</span>
+                <span className={styles.budiStatLabel}>You saved</span>
               </div>
             </div>
 
-            {litresValue > 0 && (
-              <p className={styles.budiNote}>
-                {budiQuotaRemaining > 0
-                  ? `You have ${budiQuotaRemaining.toFixed(0)} L of quota left this month. `
-                  : 'Your monthly quota is used up — this fill is at market rate. '}
-                {budiSavings > 0 &&
-                  `Saves ${formatRM(budiSavings)} versus paying full market price.`}
-              </p>
-            )}
+            <p className={styles.budiNote}>
+              {budiMarketLitres > 0
+                ? `${budiSubsidisedLitres.toFixed(2)} L at the subsidised rate, ${budiMarketLitres.toFixed(2)} L at market rate — your monthly quota ran out partway through this fill.`
+                : budiQuotaRemaining > 0
+                  ? `You'll have ${(budiQuotaRemaining - budiSubsidisedLitres).toFixed(0)} L of quota left this month after this fill.`
+                  : 'Your monthly quota is fully used for this fill.'}
+            </p>
           </div>
         )}
 
