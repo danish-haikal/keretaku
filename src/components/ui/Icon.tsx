@@ -28,6 +28,8 @@ export type IconName =
   | 'auto'
   | 'gauge'
   | 'logout'
+  | 'tyre'
+  | 'shield'
   | BodyIconName;
 
 type BodyIconName = `body-${BodyType}`;
@@ -208,6 +210,21 @@ const ICONS: Record<IconName, Path> = {
         <path d="M17 15l3-3-3-3M20 12h-9" />
       </g>
     ),
+  },
+  tyre: {
+    viewBox: '0 0 24 24',
+    content: (
+      <g {...stroke}>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21" />
+        <path d="M5.8 5.8l2.5 2.5M15.7 15.7l2.5 2.5M18.2 5.8l-2.5 2.5M8.3 15.7l-2.5 2.5" />
+      </g>
+    ),
+  },
+  shield: {
+    viewBox: '0 0 24 24',
+    content: <path {...stroke} d="M12 3l7 3v6c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6l7-3Z" />,
   },
   'body-compact': {
     viewBox: '0 0 32 20',

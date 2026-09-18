@@ -15,6 +15,12 @@ export type CurrentType = 'AC' | 'DC';
 export const FUEL_GRADES = ['RON95', 'RON97', 'Diesel'] as const;
 export type FuelGrade = (typeof FUEL_GRADES)[number];
 
+export const RIM_TYPES = ['default', 'aftermarket'] as const;
+export type RimType = (typeof RIM_TYPES)[number];
+
+export const TYRE_PRESSURE_UNITS = ['psi', 'kpa'] as const;
+export type TyrePressureUnit = (typeof TYRE_PRESSURE_UNITS)[number];
+
 export interface Household {
   id: string;
   name: string;
@@ -34,6 +40,17 @@ export interface Vehicle {
   road_tax_expiry: string | null;
   insurance_expiry: string | null;
   odometer_km: number;
+  rim_type: RimType;
+  tyre_pressure_unit: TyrePressureUnit;
+  tyre_pressure_front: number | null;
+  tyre_pressure_rear: number | null;
+  ncd_rate: number | null;
+  tank_capacity_liters: number | null;
+  hire_purchase_loan_amount: number | null;
+  hire_purchase_monthly_payment: number | null;
+  hire_purchase_tenure_months: number | null;
+  hire_purchase_start_date: string | null;
+  hire_purchase_last_payment_date: string | null;
   created_at: string;
   updated_at: string;
 }

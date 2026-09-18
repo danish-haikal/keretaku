@@ -18,9 +18,33 @@ import { VehicleTabs } from '@/components/vehicle/VehicleTabs';
 import { tabsForFuelType, type VehicleTab } from '@/components/vehicle/tabDefinitions';
 import { useToast } from '@/hooks/useToast';
 import { formatDate, formatKm, formatRM, serviceLogTitle } from '@/lib/format';
+import type { Vehicle } from '@/types/database';
 import styles from './VehicleDetailPage.module.css';
 
 type DateField = 'road_tax_expiry' | 'insurance_expiry';
+
+// TODO: duplicated from VehicleFormPage.tsx — worth moving to src/lib/format.ts.
+// Uses Start Date + Tenure only; loan amount is informational, not amortized
+// against (flat-rate HP interest isn't modeled here).
+function hirePurchaseRemainingLabel(vehicle: Vehicle): string | null {
+  const { hire_purchase_monthly_payment, hire_purchase_tenure_months, hire_purchase_start_date } =
+    vehicle;
+  if (!hire_purchase_monthly_payment || !hire_purchase_tenure_months || !hire_purchase_start_date) {
+    return null;
+  }
+  const start = new Date(hire_purchase_start_date);
+  if (Number.isNaN(start.getTime())) return null;
+  const now = new Date();
+  let elapsed =
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) elapsed -= 1;
+  elapsed = Math.max(0, Math.min(hire_purchase_tenure_months, elapsed));
+  const remainingMonths = hire_purchase_tenure_months - elapsed;
+  if (remainingMonths <= 0) return 'Fully paid off';
+  const remainingBalance = remainingMonths * hire_purchase_monthly_payment;
+  const monthsLabel = remainingMonths === 1 ? '1 month left' : `${remainingMonths} months left`;
+  return `${monthsLabel} · est. ${formatRM(remainingBalance)} remaining`;
+}
 
 export function VehicleDetailPage() {
   const { vehicleId = '' } = useParams();
@@ -67,6 +91,13 @@ export function VehicleDetailPage() {
     showToast('Renewal date saved');
   }
 
+  const hasTyreInfo = vehicle.tyre_pressure_front != null || vehicle.tyre_pressure_rear != null;
+  const hasVehicleInfo =
+    vehicle.tank_capacity_liters != null ||
+    hasTyreInfo ||
+    vehicle.ncd_rate != null ||
+    vehicle.hire_purchase_monthly_payment != null;
+
   return (
     <div className={styles.page}>
       <VehicleHero
@@ -83,6 +114,57 @@ export function VehicleDetailPage() {
           setDateDraft(vehicle[field] ?? '');
         }}
       />
+
+      {hasVehicleInfo && (
+        <div className={page.body}>
+          <div className={page.list}>
+            {vehicle.tank_capacity_liters != null && (
+              <ListRow
+                icon="fuel"
+                title="Tank capacity"
+                meta="Flags a fill-up that looks too large"
+                trailing={`${vehicle.tank_capacity_liters} L`}
+                chevron
+                onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
+              />
+            )}
+            {hasTyreInfo && (
+              <ListRow
+                icon="tyre"
+                title={`Tyre pressure (${vehicle.rim_type === 'aftermarket' ? 'aftermarket rim' : 'default rim'})`}
+                meta={
+                  vehicle.rim_type === 'default' ? 'Also check your driver-door sticker' : undefined
+                }
+                trailing={`F ${vehicle.tyre_pressure_front ?? '—'} / R ${
+                  vehicle.tyre_pressure_rear ?? '—'
+                } ${vehicle.tyre_pressure_unit}`}
+                chevron
+                onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
+              />
+            )}
+            {vehicle.ncd_rate != null && (
+              <ListRow
+                icon="shield"
+                title="NCD rate"
+                trailing={`${vehicle.ncd_rate}%`}
+                chevron
+                onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
+              />
+            )}
+            {vehicle.hire_purchase_monthly_payment != null && (
+              <ListRow
+                icon="wallet"
+                title="Hire purchase"
+                meta={hirePurchaseRemainingLabel(vehicle) ?? undefined}
+                trailing={`${formatRM(vehicle.hire_purchase_monthly_payment)}/mo`}
+                chevron
+                onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <VehicleTabs tabs={tabs} active={activeTab} onChange={setTab} />
 
       <div className={`${page.body} ${styles.tabPanel}`}>
