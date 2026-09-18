@@ -105,6 +105,45 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
     subsidisedLitres * budiSubsidyPriceValue + marketLitres * budiMarketPriceValue;
   const budiSavings = litresValue * budiMarketPriceValue - budiEstimatedCost;
 
+  const tankCapacity = vehicle.tank_capacity_liters;
+  const overTankCapacity = tankCapacity != null && litresValue > tankCapacity;
+
+  /** Litres → cost, split at the remaining subsidy quota. Only runs while the BUDI panel is live. */
+  function handleLitresChange(value: string) {
+    setLitres(value);
+    if (!showBudiPanel) return;
+    const L = parseNumberInput(value) ?? 0;
+    if (L <= 0) {
+      setCost('');
+      return;
+    }
+    const subsidised = Math.min(L, budiQuotaRemaining);
+    const market = Math.max(0, L - subsidised);
+    const computedCost = subsidised * budiSubsidyPriceValue + market * budiMarketPriceValue;
+    setCost(computedCost.toFixed(2));
+  }
+
+  /** Cost → litres, the reverse of the above: fully-subsidised up to the quota's worth of cost, then market rate. */
+  function handleCostChange(value: string) {
+    setCost(value);
+    if (!showBudiPanel) return;
+    const C = parseNumberInput(value) ?? 0;
+    if (C <= 0) {
+      setLitres('');
+      return;
+    }
+    const subsidyCapCost = budiQuotaRemaining * budiSubsidyPriceValue;
+    let computedLitres: number;
+    if (C <= subsidyCapCost) {
+      computedLitres = budiSubsidyPriceValue > 0 ? C / budiSubsidyPriceValue : 0;
+    } else {
+      const remainder = C - subsidyCapCost;
+      computedLitres =
+        budiQuotaRemaining + (budiMarketPriceValue > 0 ? remainder / budiMarketPriceValue : 0);
+    }
+    setLitres(computedLitres.toFixed(2));
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
@@ -199,37 +238,6 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
           </Field>
         </FieldRow>
 
-        <FieldRow>
-          <Field label="Volume (L)">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                required
-                placeholder="0.00"
-                value={litres}
-                onChange={(e) => setLitres(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Total (RM)">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                required
-                placeholder="0.00"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-              />
-            )}
-          </Field>
-        </FieldRow>
-
         <Field label="Station">
           {() => (
             <>
@@ -268,36 +276,10 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
 
             {showBudiPanel && (
               <div className={styles.budiPanel}>
-                <div className={styles.budiStats}>
-                  <div className={styles.budiStat}>
-                    <span className={`${styles.budiStatValue} num`}>
-                      {subsidisedLitres.toFixed(2)} L
-                    </span>
-                    <span className={styles.budiStatLabel}>Subsidised</span>
-                  </div>
-                  <div className={styles.budiStat}>
-                    <span className={`${styles.budiStatValue} num`}>
-                      {marketLitres.toFixed(2)} L
-                    </span>
-                    <span className={styles.budiStatLabel}>Market rate</span>
-                  </div>
-                  <div className={styles.budiStat}>
-                    <span className={`${styles.budiStatValue} num`}>
-                      {formatRM(budiEstimatedCost)}
-                    </span>
-                    <span className={styles.budiStatLabel}>Est. total</span>
-                  </div>
-                </div>
-
-                {litresValue > 0 && (
-                  <p className={styles.budiNote}>
-                    {budiQuotaRemaining > 0
-                      ? `You have ${budiQuotaRemaining.toFixed(0)} L of quota left this month. `
-                      : 'Your monthly quota is used up — this fill is at market rate. '}
-                    {budiSavings > 0 &&
-                      `Saves ${formatRM(budiSavings)} versus paying full market price.`}
-                  </p>
-                )}
+                <p className={styles.budiHint}>
+                  Enter either Volume or Total below — the other fills in automatically, split
+                  between subsidised and market-rate litres.
+                </p>
 
                 <div className={styles.budiRates}>
                   <label className={styles.budiRateField}>
@@ -334,17 +316,75 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
                 <p className={styles.budiHint}>
                   Market price changes roughly weekly — adjust it here if it&apos;s out of date.
                 </p>
-
-                {litresValue > 0 && (
-                  <button
-                    type="button"
-                    className={styles.budiApply}
-                    onClick={() => setCost(budiEstimatedCost.toFixed(2))}
-                  >
-                    Use {formatRM(budiEstimatedCost)} as total cost
-                  </button>
-                )}
               </div>
+            )}
+          </div>
+        )}
+
+        <FieldRow>
+          <Field label="Volume (L)">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                required
+                placeholder="0.00"
+                value={litres}
+                onChange={(e) => handleLitresChange(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Total (RM)">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                required
+                placeholder="0.00"
+                value={cost}
+                onChange={(e) => handleCostChange(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+        {overTankCapacity && (
+          <p className={styles.warning}>
+            That&apos;s more than this vehicle&apos;s {tankCapacity} L tank — double-check the
+            volume.
+          </p>
+        )}
+
+        {showBudiPanel && (
+          <div className={styles.card}>
+            <div className={styles.budiStats}>
+              <div className={styles.budiStat}>
+                <span className={`${styles.budiStatValue} num`}>
+                  {subsidisedLitres.toFixed(2)} L
+                </span>
+                <span className={styles.budiStatLabel}>Subsidised</span>
+              </div>
+              <div className={styles.budiStat}>
+                <span className={`${styles.budiStatValue} num`}>{marketLitres.toFixed(2)} L</span>
+                <span className={styles.budiStatLabel}>Market rate</span>
+              </div>
+              <div className={styles.budiStat}>
+                <span className={`${styles.budiStatValue} num`}>{formatRM(budiEstimatedCost)}</span>
+                <span className={styles.budiStatLabel}>Est. total</span>
+              </div>
+            </div>
+
+            {litresValue > 0 && (
+              <p className={styles.budiNote}>
+                {budiQuotaRemaining > 0
+                  ? `You have ${budiQuotaRemaining.toFixed(0)} L of quota left this month. `
+                  : 'Your monthly quota is used up — this fill is at market rate. '}
+                {budiSavings > 0 &&
+                  `Saves ${formatRM(budiSavings)} versus paying full market price.`}
+              </p>
             )}
           </div>
         )}
@@ -353,8 +393,8 @@ function FuelLogForm({ vehicle, log }: { vehicle: Vehicle; log: FuelLog | null }
           <Switch
             checked={fullTank}
             onChange={setFullTank}
-            label="Filled the tank"
-            hint="Only full tanks can measure consumption"
+            label="Filled up to full"
+            hint="Only turn this on when you fill all the way to the top — it's how we calculate your fuel consumption (km per litre) between full tanks. Leave it off for a partial top-up."
           />
         </div>
 

@@ -61,6 +61,12 @@
   margin-bottom: var(--space-3);
 }
 
+.warning {
+  color: var(--warning);
+  font-size: 12.5px;
+  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+}
+
 /* ---------- BUDI Madani calculation panel ---------- */
 
 .budiPanel {
@@ -129,20 +135,4 @@
   font-size: 11px;
   color: var(--text-muted);
   margin-bottom: var(--space-3);
-}
-
-.budiApply {
-  width: 100%;
-  padding: var(--space-2);
-  border: 1px solid var(--primary);
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--primary);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.budiApply:hover {
-  background: var(--primary-soft);
 }
