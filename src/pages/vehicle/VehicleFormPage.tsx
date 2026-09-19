@@ -152,21 +152,17 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     vehicle?.tyre_pressure_rear != null ? String(vehicle.tyre_pressure_rear) : '',
   );
   const [tyreFlSpec, setTyreFlSpec] = useState(vehicle?.tyre_fl_spec ?? '');
-  const [tyreFlYear, setTyreFlYear] = useState(
-    vehicle?.tyre_fl_year != null ? String(vehicle.tyre_fl_year) : '',
-  );
+  const [tyreFlBrand, setTyreFlBrand] = useState(vehicle?.tyre_fl_brand ?? '');
+  const [tyreFlDotCode, setTyreFlDotCode] = useState(vehicle?.tyre_fl_dot_code ?? '');
   const [tyreFrSpec, setTyreFrSpec] = useState(vehicle?.tyre_fr_spec ?? '');
-  const [tyreFrYear, setTyreFrYear] = useState(
-    vehicle?.tyre_fr_year != null ? String(vehicle.tyre_fr_year) : '',
-  );
+  const [tyreFrBrand, setTyreFrBrand] = useState(vehicle?.tyre_fr_brand ?? '');
+  const [tyreFrDotCode, setTyreFrDotCode] = useState(vehicle?.tyre_fr_dot_code ?? '');
   const [tyreRlSpec, setTyreRlSpec] = useState(vehicle?.tyre_rl_spec ?? '');
-  const [tyreRlYear, setTyreRlYear] = useState(
-    vehicle?.tyre_rl_year != null ? String(vehicle.tyre_rl_year) : '',
-  );
+  const [tyreRlBrand, setTyreRlBrand] = useState(vehicle?.tyre_rl_brand ?? '');
+  const [tyreRlDotCode, setTyreRlDotCode] = useState(vehicle?.tyre_rl_dot_code ?? '');
   const [tyreRrSpec, setTyreRrSpec] = useState(vehicle?.tyre_rr_spec ?? '');
-  const [tyreRrYear, setTyreRrYear] = useState(
-    vehicle?.tyre_rr_year != null ? String(vehicle.tyre_rr_year) : '',
-  );
+  const [tyreRrBrand, setTyreRrBrand] = useState(vehicle?.tyre_rr_brand ?? '');
+  const [tyreRrDotCode, setTyreRrDotCode] = useState(vehicle?.tyre_rr_dot_code ?? '');
   const [hpLoanAmount, setHpLoanAmount] = useState(
     vehicle?.hire_purchase_loan_amount != null ? String(vehicle.hire_purchase_loan_amount) : '',
   );
@@ -224,13 +220,17 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       tyre_pressure_front: toNullableNumber(pressureFront),
       tyre_pressure_rear: toNullableNumber(pressureRear),
       tyre_fl_spec: cleanText(tyreFlSpec),
-      tyre_fl_year: toNullableInt(tyreFlYear),
+      tyre_fl_brand: cleanText(tyreFlBrand),
+      tyre_fl_dot_code: cleanText(tyreFlDotCode),
       tyre_fr_spec: cleanText(tyreFrSpec),
-      tyre_fr_year: toNullableInt(tyreFrYear),
+      tyre_fr_brand: cleanText(tyreFrBrand),
+      tyre_fr_dot_code: cleanText(tyreFrDotCode),
       tyre_rl_spec: cleanText(tyreRlSpec),
-      tyre_rl_year: toNullableInt(tyreRlYear),
+      tyre_rl_brand: cleanText(tyreRlBrand),
+      tyre_rl_dot_code: cleanText(tyreRlDotCode),
       tyre_rr_spec: cleanText(tyreRrSpec),
-      tyre_rr_year: toNullableInt(tyreRrYear),
+      tyre_rr_brand: cleanText(tyreRrBrand),
+      tyre_rr_dot_code: cleanText(tyreRrDotCode),
       hire_purchase_loan_amount: toNullableNumber(hpLoanAmount),
       hire_purchase_monthly_payment: toNullableNumber(hpMonthlyPayment),
       hire_purchase_tenure_months: toNullableInt(hpTenureMonths),
@@ -489,19 +489,32 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               />
             )}
           </Field>
-          <Field label="Manufacture year">
+          <Field label="Brand">
             {(id) => (
               <TextInput
                 id={id}
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 2023"
-                value={tyreFlYear}
-                onChange={(e) => setTyreFlYear(e.target.value)}
+                placeholder="e.g. Michelin"
+                value={tyreFlBrand}
+                onChange={(e) => setTyreFlBrand(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
+        <Field
+          label="DOT code"
+          hint="4-digit code near the DOT mark on the sidewall — first 2 digits are the week, last 2 are the year (e.g. 3524 = week 35 of 2024)."
+        >
+          {(id) => (
+            <TextInput
+              id={id}
+              placeholder="e.g. 3524"
+              inputMode="numeric"
+              maxLength={4}
+              value={tyreFlDotCode}
+              onChange={(e) => setTyreFlDotCode(e.target.value)}
+            />
+          )}
+        </Field>
 
         <FieldRow>
           <Field label="Front right size">
@@ -514,19 +527,29 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               />
             )}
           </Field>
-          <Field label="Manufacture year">
+          <Field label="Brand">
             {(id) => (
               <TextInput
                 id={id}
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 2023"
-                value={tyreFrYear}
-                onChange={(e) => setTyreFrYear(e.target.value)}
+                placeholder="e.g. Michelin"
+                value={tyreFrBrand}
+                onChange={(e) => setTyreFrBrand(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
+        <Field label="DOT code">
+          {(id) => (
+            <TextInput
+              id={id}
+              placeholder="e.g. 3524"
+              inputMode="numeric"
+              maxLength={4}
+              value={tyreFrDotCode}
+              onChange={(e) => setTyreFrDotCode(e.target.value)}
+            />
+          )}
+        </Field>
 
         <FieldRow>
           <Field label="Rear left size">
@@ -539,19 +562,29 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               />
             )}
           </Field>
-          <Field label="Manufacture year">
+          <Field label="Brand">
             {(id) => (
               <TextInput
                 id={id}
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 2023"
-                value={tyreRlYear}
-                onChange={(e) => setTyreRlYear(e.target.value)}
+                placeholder="e.g. Michelin"
+                value={tyreRlBrand}
+                onChange={(e) => setTyreRlBrand(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
+        <Field label="DOT code">
+          {(id) => (
+            <TextInput
+              id={id}
+              placeholder="e.g. 3524"
+              inputMode="numeric"
+              maxLength={4}
+              value={tyreRlDotCode}
+              onChange={(e) => setTyreRlDotCode(e.target.value)}
+            />
+          )}
+        </Field>
 
         <FieldRow>
           <Field label="Rear right size">
@@ -564,19 +597,29 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               />
             )}
           </Field>
-          <Field label="Manufacture year">
+          <Field label="Brand">
             {(id) => (
               <TextInput
                 id={id}
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 2023"
-                value={tyreRrYear}
-                onChange={(e) => setTyreRrYear(e.target.value)}
+                placeholder="e.g. Michelin"
+                value={tyreRrBrand}
+                onChange={(e) => setTyreRrBrand(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
+        <Field label="DOT code">
+          {(id) => (
+            <TextInput
+              id={id}
+              placeholder="e.g. 3524"
+              inputMode="numeric"
+              maxLength={4}
+              value={tyreRrDotCode}
+              onChange={(e) => setTyreRrDotCode(e.target.value)}
+            />
+          )}
+        </Field>
 
         <div className={page.sectionHead}>
           <h2>Hire purchase (optional)</h2>

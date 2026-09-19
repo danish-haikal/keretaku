@@ -17,7 +17,7 @@ import { VehicleHero } from '@/components/vehicle/VehicleHero';
 import { VehicleTabs } from '@/components/vehicle/VehicleTabs';
 import { tabsForFuelType, type VehicleTab } from '@/components/vehicle/tabDefinitions';
 import { useToast } from '@/hooks/useToast';
-import { formatDate, formatKm, formatRM, serviceLogTitle } from '@/lib/format';
+import { formatDate, formatKm, formatRM, parseTyreDotCode, serviceLogTitle } from '@/lib/format';
 import type { Vehicle } from '@/types/database';
 import styles from './VehicleDetailPage.module.css';
 
@@ -48,7 +48,8 @@ function hirePurchaseRemainingLabel(vehicle: Vehicle): string | null {
 }
 
 /** Summary for the "Tyre specification" row: the size if all four match
- * ("Mixed sizes" if not), and the oldest manufacture year across the four,
+ * ("Mixed sizes" if not); a meta line combining the brand (if all four
+ * match, else "Mixed brands") and the oldest DOT code across the four,
  * since that's the tyre closest to needing replacement. */
 function tyreSpecSummary(vehicle: Vehicle): { trailing: string; meta?: string } {
   const specs = [
@@ -58,20 +59,48 @@ function tyreSpecSummary(vehicle: Vehicle): { trailing: string; meta?: string } 
     vehicle.tyre_rr_spec,
   ];
   const uniqueSpecs = Array.from(new Set(specs.filter((s): s is string => s != null)));
-  const trailing =
-    uniqueSpecs.length === 0
-      ? '—'
-      : uniqueSpecs.length === 1
-        ? (uniqueSpecs[0] ?? '—')
-        : 'Mixed sizes';
+  let trailing: string;
+  if (uniqueSpecs.length === 0) {
+    trailing = '—';
+  } else if (uniqueSpecs.length === 1) {
+    const [onlySpec] = uniqueSpecs;
+    trailing = onlySpec ?? '—';
+  } else {
+    trailing = 'Mixed sizes';
+  }
 
-  const years = [
-    vehicle.tyre_fl_year,
-    vehicle.tyre_fr_year,
-    vehicle.tyre_rl_year,
-    vehicle.tyre_rr_year,
-  ].filter((y): y is number => y != null);
-  const meta = years.length > 0 ? `Oldest: ${Math.min(...years)}` : undefined;
+  const brands = [
+    vehicle.tyre_fl_brand,
+    vehicle.tyre_fr_brand,
+    vehicle.tyre_rl_brand,
+    vehicle.tyre_rr_brand,
+  ];
+  const uniqueBrands = Array.from(new Set(brands.filter((b): b is string => b != null)));
+  let brandLabel: string | null;
+  if (uniqueBrands.length === 0) {
+    brandLabel = null;
+  } else if (uniqueBrands.length === 1) {
+    const [onlyBrand] = uniqueBrands;
+    brandLabel = onlyBrand ?? null;
+  } else {
+    brandLabel = 'Mixed brands';
+  }
+
+  const dotCodes = [
+    vehicle.tyre_fl_dot_code,
+    vehicle.tyre_fr_dot_code,
+    vehicle.tyre_rl_dot_code,
+    vehicle.tyre_rr_dot_code,
+  ];
+  const parsedCodes = dotCodes
+    .map((c) => parseTyreDotCode(c))
+    .filter((p): p is NonNullable<typeof p> => p != null);
+  const oldestLabel =
+    parsedCodes.length > 0
+      ? `Oldest: ${parsedCodes.reduce((a, b) => (a.sortKey <= b.sortKey ? a : b)).label}`
+      : null;
+
+  const meta = [brandLabel, oldestLabel].filter(Boolean).join(' · ') || undefined;
 
   return { trailing, meta };
 }
@@ -124,13 +153,17 @@ export function VehicleDetailPage() {
   const hasTyreInfo = vehicle.tyre_pressure_front != null || vehicle.tyre_pressure_rear != null;
   const hasTyreSpecInfo =
     vehicle.tyre_fl_spec != null ||
-    vehicle.tyre_fl_year != null ||
+    vehicle.tyre_fl_brand != null ||
+    vehicle.tyre_fl_dot_code != null ||
     vehicle.tyre_fr_spec != null ||
-    vehicle.tyre_fr_year != null ||
+    vehicle.tyre_fr_brand != null ||
+    vehicle.tyre_fr_dot_code != null ||
     vehicle.tyre_rl_spec != null ||
-    vehicle.tyre_rl_year != null ||
+    vehicle.tyre_rl_brand != null ||
+    vehicle.tyre_rl_dot_code != null ||
     vehicle.tyre_rr_spec != null ||
-    vehicle.tyre_rr_year != null;
+    vehicle.tyre_rr_brand != null ||
+    vehicle.tyre_rr_dot_code != null;
   const tyreSpec = hasTyreSpecInfo ? tyreSpecSummary(vehicle) : null;
   const hasHirePurchaseInfo =
     vehicle.hire_purchase_paid_off || vehicle.hire_purchase_monthly_payment != null;
