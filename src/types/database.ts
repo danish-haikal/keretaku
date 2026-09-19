@@ -21,6 +21,9 @@ export type RimType = (typeof RIM_TYPES)[number];
 export const TYRE_PRESSURE_UNITS = ['psi', 'kpa'] as const;
 export type TyrePressureUnit = (typeof TYRE_PRESSURE_UNITS)[number];
 
+export const RENEWAL_KINDS = ['road_tax', 'insurance'] as const;
+export type RenewalKind = (typeof RENEWAL_KINDS)[number];
+
 export interface Household {
   id: string;
   name: string;
@@ -38,6 +41,7 @@ export interface Vehicle {
   year: number;
   plate_number: string | null;
   owner_name: string | null;
+  purchase_year: number | null;
   road_tax_expiry: string | null;
   insurance_expiry: string | null;
   road_tax_reminder_dismissed_at: string | null;
@@ -176,3 +180,27 @@ export interface MaintenanceReminder {
   next_due_km: number | null;
   next_due_date: string | null;
 }
+
+export interface RenewalLog {
+  id: string;
+  vehicle_id: string;
+  kind: RenewalKind;
+  renewed_on: string;
+  amount: number;
+  expiry_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export type RenewalLogInput = Omit<RenewalLog, 'id' | 'created_at'>;
+
+export interface VehicleValueLog {
+  id: string;
+  vehicle_id: string;
+  recorded_on: string;
+  value: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export type VehicleValueLogInput = Omit<VehicleValueLog, 'id' | 'created_at'>;

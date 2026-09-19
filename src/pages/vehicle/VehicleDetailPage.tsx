@@ -1,12 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useChargingLogs, useFuelLogs, useServiceLogs } from '@/api/logs';
+import {
+  useCreateRenewalLog,
+  useCreateVehicleValueLog,
+  useDeleteRenewalLog,
+  useDeleteVehicleValueLog,
+  useRenewalLogs,
+  useUpdateRenewalLog,
+  useUpdateVehicleValueLog,
+  useVehicleValueLogs,
+} from '@/api/records';
 import { useUpdateVehicle, useVehicle } from '@/api/vehicles';
 import page from '@/components/layout/Page.module.css';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ChipSelect, type ChipOption } from '@/components/ui/ChipSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Field, TextInput } from '@/components/ui/Field';
+import { Field, FieldRow, TextInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { ListRow } from '@/components/ui/ListRow';
 import { Sheet } from '@/components/ui/Sheet';
@@ -18,35 +29,28 @@ import { VehicleHero } from '@/components/vehicle/VehicleHero';
 import { VehicleTabs } from '@/components/vehicle/VehicleTabs';
 import { tabsForFuelType, type VehicleTab } from '@/components/vehicle/tabDefinitions';
 import { useToast } from '@/hooks/useToast';
-import { formatDate, formatKm, formatRM, parseTyreDotCode, serviceLogTitle } from '@/lib/format';
-import type { Vehicle } from '@/types/database';
+import {
+  cleanText,
+  formatDate,
+  formatKm,
+  formatRM,
+  hirePurchaseRemainingLabel,
+  parseNumberInput,
+  parseTyreDotCode,
+  serviceLogTitle,
+} from '@/lib/format';
+import type { RenewalKind, RenewalLog, Vehicle, VehicleValueLog } from '@/types/database';
 import styles from './VehicleDetailPage.module.css';
 
 type DateField = 'road_tax_expiry' | 'insurance_expiry';
 
-// TODO: duplicated from VehicleFormPage.tsx — worth moving to src/lib/format.ts.
-// Uses Start Date + Tenure only; loan amount is informational, not amortized
-// against (flat-rate HP interest isn't modeled here).
-function hirePurchaseRemainingLabel(vehicle: Vehicle): string | null {
-  if (vehicle.hire_purchase_paid_off) return null;
-  const { hire_purchase_monthly_payment, hire_purchase_tenure_months, hire_purchase_start_date } =
-    vehicle;
-  if (!hire_purchase_monthly_payment || !hire_purchase_tenure_months || !hire_purchase_start_date) {
-    return null;
-  }
-  const start = new Date(hire_purchase_start_date);
-  if (Number.isNaN(start.getTime())) return null;
-  const now = new Date();
-  let elapsed =
-    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  if (now.getDate() < start.getDate()) elapsed -= 1;
-  elapsed = Math.max(0, Math.min(hire_purchase_tenure_months, elapsed));
-  const remainingMonths = hire_purchase_tenure_months - elapsed;
-  if (remainingMonths <= 0) return 'Fully paid off';
-  const remainingBalance = remainingMonths * hire_purchase_monthly_payment;
-  const monthsLabel = remainingMonths === 1 ? '1 month left' : `${remainingMonths} months left`;
-  return `${monthsLabel} · est. ${formatRM(remainingBalance)} remaining`;
-}
+type DeleteTarget =
+  { type: 'renewal'; id: string; kind: RenewalKind } | { type: 'value'; id: string } | null;
+
+const RENEWAL_KIND_OPTIONS: ChipOption<RenewalKind>[] = [
+  { value: 'road_tax', label: 'Road tax', icon: 'doc' },
+  { value: 'insurance', label: 'Insurance', icon: 'shield' },
+];
 
 /** Summary for the "Tyre specification" row: the size if all four match
  * ("Mixed sizes" if not); a meta line combining the brand (if all four
@@ -106,6 +110,21 @@ function tyreSpecSummary(vehicle: Vehicle): { trailing: string; meta?: string } 
   return { trailing, meta };
 }
 
+/** Value logs are fetched newest-first, so the entry "older" than logs[i] is logs[i + 1]. */
+function valueChangeLabel(
+  logs: VehicleValueLog[],
+  index: number,
+): { text: string; color: string } | null {
+  const current = logs[index];
+  const older = logs[index + 1];
+  if (!current || !older) return null;
+  const diff = current.value - older.value;
+  if (diff === 0) return { text: 'No change', color: 'var(--ink-soft, #6b6058)' };
+  const arrow = diff > 0 ? '▲' : '▼';
+  const color = diff > 0 ? 'var(--success, #2e7d32)' : 'var(--danger, #c0392b)';
+  return { text: `${arrow} ${formatRM(Math.abs(diff))}`, color };
+}
+
 export function VehicleDetailPage() {
   const { vehicleId = '' } = useParams();
   const navigate = useNavigate();
@@ -120,6 +139,22 @@ export function VehicleDetailPage() {
   const [dateField, setDateField] = useState<DateField | null>(null);
   const [dateDraft, setDateDraft] = useState('');
 
+  const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
+  const [editingRenewalId, setEditingRenewalId] = useState<string | null>(null);
+  const [renewalKind, setRenewalKind] = useState<RenewalKind>('road_tax');
+  const [renewalDate, setRenewalDate] = useState('');
+  const [renewalAmount, setRenewalAmount] = useState('');
+  const [renewalExpiry, setRenewalExpiry] = useState('');
+  const [renewalNotes, setRenewalNotes] = useState('');
+
+  const [valueSheetOpen, setValueSheetOpen] = useState(false);
+  const [editingValueId, setEditingValueId] = useState<string | null>(null);
+  const [valueDate, setValueDate] = useState('');
+  const [valueAmount, setValueAmount] = useState('');
+  const [valueNotes, setValueNotes] = useState('');
+
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+
   const hasFuel = vehicle ? vehicle.fuel_type !== 'electric' : false;
   const hasCharging = vehicle
     ? vehicle.fuel_type === 'electric' || vehicle.fuel_type === 'hybrid'
@@ -128,6 +163,15 @@ export function VehicleDetailPage() {
   const fuelLogs = useFuelLogs(vehicleId, hasFuel);
   const chargingLogs = useChargingLogs(vehicleId, hasCharging);
   const serviceLogs = useServiceLogs(vehicleId);
+  const renewalLogs = useRenewalLogs(vehicleId);
+  const valueLogs = useVehicleValueLogs(vehicleId);
+
+  const createRenewal = useCreateRenewalLog();
+  const updateRenewal = useUpdateRenewalLog();
+  const deleteRenewal = useDeleteRenewalLog();
+  const createValue = useCreateVehicleValueLog();
+  const updateValue = useUpdateVehicleValueLog();
+  const deleteValue = useDeleteVehicleValueLog();
 
   const tabs = useMemo(() => (vehicle ? tabsForFuelType(vehicle.fuel_type) : []), [vehicle]);
   const activeTab: VehicleTab = tab ?? tabs[0]?.id ?? 'service';
@@ -150,6 +194,102 @@ export function VehicleDetailPage() {
     setDateField(null);
     showToast('Renewal date saved');
   }
+
+  function openRenewalSheet() {
+    const today = new Date().toISOString().slice(0, 10);
+    setEditingRenewalId(null);
+    setRenewalKind('road_tax');
+    setRenewalDate(today);
+    setRenewalAmount('');
+    setRenewalExpiry('');
+    setRenewalNotes('');
+    setRenewalSheetOpen(true);
+  }
+
+  function openEditRenewalSheet(log: RenewalLog) {
+    setEditingRenewalId(log.id);
+    setRenewalKind(log.kind);
+    setRenewalDate(log.renewed_on);
+    setRenewalAmount(String(log.amount));
+    setRenewalExpiry(log.expiry_date);
+    setRenewalNotes(log.notes ?? '');
+    setRenewalSheetOpen(true);
+  }
+
+  const saveRenewal = async () => {
+    const amount = parseNumberInput(renewalAmount);
+    if (!renewalDate || amount == null || !renewalExpiry) return;
+    const payload = {
+      vehicle_id: vehicle.id,
+      kind: renewalKind,
+      renewed_on: renewalDate,
+      amount,
+      expiry_date: renewalExpiry,
+      notes: cleanText(renewalNotes),
+    };
+    if (editingRenewalId) {
+      await updateRenewal.mutateAsync({ id: editingRenewalId, ...payload });
+      showToast('Renewal updated');
+    } else {
+      await createRenewal.mutateAsync(payload);
+      showToast(
+        `${renewalKind === 'road_tax' ? 'Road tax' : 'Insurance'} renewal logged · expiry updated to ${formatDate(renewalExpiry)}`,
+      );
+    }
+    setRenewalSheetOpen(false);
+  };
+
+  function openValueSheet() {
+    const today = new Date().toISOString().slice(0, 10);
+    setEditingValueId(null);
+    setValueDate(today);
+    setValueAmount('');
+    setValueNotes('');
+    setValueSheetOpen(true);
+  }
+
+  function openEditValueSheet(log: VehicleValueLog) {
+    setEditingValueId(log.id);
+    setValueDate(log.recorded_on);
+    setValueAmount(String(log.value));
+    setValueNotes(log.notes ?? '');
+    setValueSheetOpen(true);
+  }
+
+  const saveValue = async () => {
+    const value = parseNumberInput(valueAmount);
+    if (!valueDate || value == null) return;
+    const payload = {
+      vehicle_id: vehicle.id,
+      recorded_on: valueDate,
+      value,
+      notes: cleanText(valueNotes),
+    };
+    if (editingValueId) {
+      await updateValue.mutateAsync({ id: editingValueId, ...payload });
+      showToast('Value updated');
+    } else {
+      await createValue.mutateAsync(payload);
+      showToast('Value logged');
+    }
+    setValueSheetOpen(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === 'renewal') {
+      await deleteRenewal.mutateAsync({
+        id: deleteTarget.id,
+        vehicleId: vehicle.id,
+        kind: deleteTarget.kind,
+      });
+      showToast('Renewal entry removed');
+    } else {
+      await deleteValue.mutateAsync({ id: deleteTarget.id, vehicleId: vehicle.id });
+      showToast('Value entry removed');
+    }
+    setDeleteTarget(null);
+  };
 
   const hasTyreInfo = vehicle.tyre_pressure_front != null || vehicle.tyre_pressure_rear != null;
   const hasTyreSpecInfo =
@@ -249,7 +389,12 @@ export function VehicleDetailPage() {
                 meta={
                   vehicle.hire_purchase_paid_off
                     ? undefined
-                    : (hirePurchaseRemainingLabel(vehicle) ?? undefined)
+                    : (hirePurchaseRemainingLabel({
+                        paidOff: vehicle.hire_purchase_paid_off,
+                        monthlyPayment: vehicle.hire_purchase_monthly_payment,
+                        tenureMonths: vehicle.hire_purchase_tenure_months,
+                        startDate: vehicle.hire_purchase_start_date,
+                      }) ?? undefined)
                 }
                 trailing={
                   vehicle.hire_purchase_paid_off
@@ -430,6 +575,79 @@ export function VehicleDetailPage() {
           </>
         )}
 
+        {activeTab === 'records' && (
+          <>
+            <div className={page.sectionHead}>
+              <h2>Road tax & insurance</h2>
+              <Button onClick={openRenewalSheet}>
+                <Icon name="plus" size={15} />
+                Log renewal
+              </Button>
+            </div>
+            {renewalLogs.isPending && <LoadingState />}
+            {renewalLogs.data?.length === 0 && (
+              <EmptyState
+                icon="doc"
+                title="No renewals logged yet"
+                description="Log a renewal to keep a history and update the expiry date in one step."
+              />
+            )}
+            <div className={page.list}>
+              {(renewalLogs.data ?? []).map((log) => (
+                <ListRow
+                  key={log.id}
+                  icon={log.kind === 'road_tax' ? 'doc' : 'shield'}
+                  title={log.kind === 'road_tax' ? 'Road tax renewed' : 'Insurance renewed'}
+                  meta={`${formatDate(log.renewed_on)} · expires ${formatDate(log.expiry_date)}`}
+                  trailing={formatRM(log.amount)}
+                  chevron
+                  onClick={() => openEditRenewalSheet(log)}
+                />
+              ))}
+            </div>
+
+            <div className={page.sectionHead} style={{ marginTop: 24 }}>
+              <h2>Market value</h2>
+              <Button onClick={openValueSheet}>
+                <Icon name="plus" size={15} />
+                Log value
+              </Button>
+            </div>
+            {valueLogs.isPending && <LoadingState />}
+            {valueLogs.data?.length === 0 && (
+              <EmptyState
+                icon="wallet"
+                title="No value logged yet"
+                description="Track the vehicle's market value over time, e.g. from Carlist or Mudah listings."
+              />
+            )}
+            <div className={page.list}>
+              {(valueLogs.data ?? []).map((log, index) => {
+                const change = valueChangeLabel(valueLogs.data ?? [], index);
+                return (
+                  <ListRow
+                    key={log.id}
+                    icon="wallet"
+                    title={formatRM(log.value)}
+                    meta={
+                      change ? (
+                        <>
+                          {formatDate(log.recorded_on)} ·{' '}
+                          <span style={{ color: change.color }}>{change.text}</span>
+                        </>
+                      ) : (
+                        `${formatDate(log.recorded_on)} · First entry`
+                      )
+                    }
+                    chevron
+                    onClick={() => openEditValueSheet(log)}
+                  />
+                );
+              })}
+            </div>
+          </>
+        )}
+
         {activeTab === 'spending' && (
           <SpendingSummary
             fuelTotal={(fuelLogs.data ?? []).reduce((sum, l) => sum + Number(l.total_cost), 0)}
@@ -438,10 +656,12 @@ export function VehicleDetailPage() {
               0,
             )}
             serviceTotal={(serviceLogs.data ?? []).reduce((sum, l) => sum + Number(l.cost), 0)}
+            renewalTotal={(renewalLogs.data ?? []).reduce((sum, l) => sum + Number(l.amount), 0)}
             entryCount={
               (fuelLogs.data?.length ?? 0) +
               (chargingLogs.data?.length ?? 0) +
-              (serviceLogs.data?.length ?? 0)
+              (serviceLogs.data?.length ?? 0) +
+              (renewalLogs.data?.length ?? 0)
             }
           />
         )}
@@ -487,6 +707,188 @@ export function VehicleDetailPage() {
         </Field>
         <Button block onClick={() => void saveDate()} disabled={updateVehicle.isPending}>
           Save
+        </Button>
+      </Sheet>
+
+      <Sheet
+        open={renewalSheetOpen}
+        title={editingRenewalId ? 'Edit renewal' : 'Log renewal'}
+        hint={
+          renewalExpiry
+            ? `Saving this will also update your ${renewalKind === 'road_tax' ? 'Road tax' : 'Insurance'} expiry date to ${formatDate(renewalExpiry)}.`
+            : "This also updates the vehicle's expiry date for the type you pick."
+        }
+        onClose={() => setRenewalSheetOpen(false)}
+      >
+        <Field label="Type">
+          {() => (
+            <ChipSelect
+              label="Renewal type"
+              options={RENEWAL_KIND_OPTIONS}
+              value={renewalKind}
+              onChange={setRenewalKind}
+            />
+          )}
+        </Field>
+        <FieldRow>
+          <Field label="Renewed on">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="date"
+                value={renewalDate}
+                onChange={(e) => setRenewalDate(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Amount (RM)">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={renewalAmount}
+                onChange={(e) => setRenewalAmount(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+        <Field label="New expiry date">
+          {(id) => (
+            <TextInput
+              id={id}
+              type="date"
+              value={renewalExpiry}
+              onChange={(e) => setRenewalExpiry(e.target.value)}
+            />
+          )}
+        </Field>
+        <Field label="Notes">
+          {(id) => (
+            <TextInput
+              id={id}
+              value={renewalNotes}
+              onChange={(e) => setRenewalNotes(e.target.value)}
+            />
+          )}
+        </Field>
+        <Button
+          block
+          onClick={() => void saveRenewal()}
+          disabled={
+            createRenewal.isPending ||
+            updateRenewal.isPending ||
+            !renewalDate ||
+            !renewalExpiry ||
+            parseNumberInput(renewalAmount) == null
+          }
+        >
+          {createRenewal.isPending || updateRenewal.isPending
+            ? 'Saving…'
+            : editingRenewalId
+              ? 'Save changes'
+              : 'Save renewal'}
+        </Button>
+        {editingRenewalId && (
+          <Button
+            type="button"
+            variant="danger"
+            block
+            onClick={() => {
+              setRenewalSheetOpen(false);
+              setDeleteTarget({ type: 'renewal', id: editingRenewalId, kind: renewalKind });
+            }}
+          >
+            Remove entry
+          </Button>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={valueSheetOpen}
+        title={editingValueId ? 'Edit value' : 'Log value'}
+        hint="Handy for tracking depreciation or checking against Carlist/Mudah listings."
+        onClose={() => setValueSheetOpen(false)}
+      >
+        <FieldRow>
+          <Field label="Date">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="date"
+                value={valueDate}
+                onChange={(e) => setValueDate(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Value (RM)">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={valueAmount}
+                onChange={(e) => setValueAmount(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+        <Field label="Notes">
+          {(id) => (
+            <TextInput id={id} value={valueNotes} onChange={(e) => setValueNotes(e.target.value)} />
+          )}
+        </Field>
+        <Button
+          block
+          onClick={() => void saveValue()}
+          disabled={
+            createValue.isPending ||
+            updateValue.isPending ||
+            !valueDate ||
+            parseNumberInput(valueAmount) == null
+          }
+        >
+          {createValue.isPending || updateValue.isPending
+            ? 'Saving…'
+            : editingValueId
+              ? 'Save changes'
+              : 'Save value'}
+        </Button>
+        {editingValueId && (
+          <Button
+            type="button"
+            variant="danger"
+            block
+            onClick={() => {
+              setValueSheetOpen(false);
+              setDeleteTarget({ type: 'value', id: editingValueId });
+            }}
+          >
+            Remove entry
+          </Button>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={deleteTarget !== null}
+        title="Remove this entry?"
+        hint={
+          deleteTarget?.type === 'renewal'
+            ? "This can't be undone. It won't change the vehicle's current expiry date unless this was the most recent renewal of its type."
+            : "This can't be undone."
+        }
+        onClose={() => setDeleteTarget(null)}
+      >
+        <Button
+          type="button"
+          variant="danger"
+          block
+          onClick={() => void confirmDelete()}
+          disabled={deleteRenewal.isPending || deleteValue.isPending}
+        >
+          {deleteRenewal.isPending || deleteValue.isPending ? 'Removing…' : 'Remove entry'}
         </Button>
       </Sheet>
     </div>

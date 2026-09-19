@@ -10,7 +10,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { ErrorState, LoadingState } from '@/components/ui/StateMessage';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/hooks/useToast';
-import { cleanText, formatRM } from '@/lib/format';
+import { cleanText, formatDotCodeHint, hirePurchaseRemainingLabel } from '@/lib/format';
 import {
   BODY_TYPES,
   RIM_TYPES,
@@ -79,32 +79,6 @@ function toNullableInt(value: string): number | null {
   return n != null ? Math.max(0, Math.round(n)) : null;
 }
 
-/**
- * Months/balance remaining, using Start Date + Tenure as the source of truth
- * (not a manually-typed payment counter, which drifts). Loan amount is
- * informational only — this does not amortize against it, since Malaysian
- * hire purchase uses flat-rate interest we haven't captured.
- */
-function hirePurchaseSummary(
-  monthlyPayment: number | null,
-  tenureMonths: number | null,
-  startDate: string,
-): string | null {
-  if (!monthlyPayment || !tenureMonths || !startDate) return null;
-  const start = new Date(startDate);
-  if (Number.isNaN(start.getTime())) return null;
-  const now = new Date();
-  let elapsed =
-    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  if (now.getDate() < start.getDate()) elapsed -= 1;
-  elapsed = Math.max(0, Math.min(tenureMonths, elapsed));
-  const remainingMonths = tenureMonths - elapsed;
-  if (remainingMonths <= 0) return 'Fully paid off, based on start date and tenure.';
-  const remainingBalance = remainingMonths * monthlyPayment;
-  const monthsLabel = remainingMonths === 1 ? '1 month' : `${remainingMonths} months`;
-  return `${monthsLabel} left · est. ${formatRM(remainingBalance)} remaining (at current monthly rate)`;
-}
-
 /** Loads the vehicle when editing, then renders the form with real initial values. */
 export function VehicleFormPage() {
   const { vehicleId } = useParams();
@@ -135,6 +109,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [year, setYear] = useState(String(vehicle?.year ?? new Date().getFullYear()));
   const [plate, setPlate] = useState(vehicle?.plate_number ?? '');
   const [ownerName, setOwnerName] = useState(vehicle?.owner_name ?? '');
+  const [purchaseYear, setPurchaseYear] = useState(
+    vehicle?.purchase_year != null ? String(vehicle.purchase_year) : '',
+  );
   const [roadTax, setRoadTax] = useState(vehicle?.road_tax_expiry ?? '');
   const [insurance, setInsurance] = useState(vehicle?.insurance_expiry ?? '');
   const [ncdRate, setNcdRate] = useState(vehicle?.ncd_rate != null ? String(vehicle.ncd_rate) : '');
@@ -183,11 +160,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const hpSummary = hirePurchaseSummary(
-    toNullableNumber(hpMonthlyPayment),
-    toNullableInt(hpTenureMonths),
-    hpStartDate,
-  );
+  const hpSummary = hirePurchaseRemainingLabel({
+    paidOff: hpPaidOff,
+    monthlyPayment: toNullableNumber(hpMonthlyPayment),
+    tenureMonths: toNullableInt(hpTenureMonths),
+    startDate: hpStartDate || null,
+  });
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -212,6 +190,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       year: yearNumber,
       plate_number: cleanText(plate),
       owner_name: cleanText(ownerName),
+      purchase_year: toNullableInt(purchaseYear),
       road_tax_expiry: roadTax || null,
       insurance_expiry: insurance || null,
       odometer_km: Math.max(0, Math.round(Number(odometer) || 0)),
@@ -361,6 +340,22 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               placeholder="e.g. Ibu"
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
+            />
+          )}
+        </Field>
+
+        <Field
+          label="Purchase year"
+          hint="The year you got this car — shown as years owned on the vehicle header."
+        >
+          {(id) => (
+            <TextInput
+              id={id}
+              type="number"
+              inputMode="numeric"
+              placeholder="e.g. 2020"
+              value={purchaseYear}
+              onChange={(e) => setPurchaseYear(e.target.value)}
             />
           )}
         </Field>
@@ -516,10 +511,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             )}
           </Field>
         </FieldRow>
-        <Field
-          label="DOT code"
-          hint="4-digit code near the DOT mark on the sidewall — first 2 digits are the week, last 2 are the year (e.g. 3524 = week 35 of 2024)."
-        >
+        <Field label="DOT code" hint={formatDotCodeHint(tyreFlDotCode)}>
           {(id) => (
             <TextInput
               id={id}
@@ -554,7 +546,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             )}
           </Field>
         </FieldRow>
-        <Field label="DOT code">
+        <Field label="DOT code" hint={formatDotCodeHint(tyreFrDotCode)}>
           {(id) => (
             <TextInput
               id={id}
@@ -589,7 +581,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             )}
           </Field>
         </FieldRow>
-        <Field label="DOT code">
+        <Field label="DOT code" hint={formatDotCodeHint(tyreRlDotCode)}>
           {(id) => (
             <TextInput
               id={id}
@@ -624,7 +616,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             )}
           </Field>
         </FieldRow>
-        <Field label="DOT code">
+        <Field label="DOT code" hint={formatDotCodeHint(tyreRrDotCode)}>
           {(id) => (
             <TextInput
               id={id}

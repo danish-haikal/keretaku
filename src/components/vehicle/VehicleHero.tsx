@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { bodyIcon } from '@/components/ui/iconMap';
 import { IconButton } from '@/components/ui/IconButton';
-import { formatKm, vehicleSubtitle, vehicleTitle } from '@/lib/format';
+import { formatKm, ownershipLabel, vehicleSubtitle, vehicleTitle } from '@/lib/format';
 import type { Vehicle } from '@/types/database';
 import styles from './VehicleHero.module.css';
 
@@ -14,6 +14,13 @@ interface VehicleHeroProps {
 export function VehicleHero({ vehicle, onUpdateOdometer }: VehicleHeroProps) {
   const navigate = useNavigate();
   const isElectric = vehicle.fuel_type === 'electric';
+
+  const ownerLine = [
+    vehicle.owner_name ? `Owner: ${vehicle.owner_name}` : null,
+    ownershipLabel(vehicle.purchase_year),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <header className={`${styles.hero} ${isElectric ? styles.electric : styles.petrol}`}>
@@ -38,7 +45,7 @@ export function VehicleHero({ vehicle, onUpdateOdometer }: VehicleHeroProps) {
         <div className={styles.names}>
           <h1 className={styles.name}>{vehicleTitle(vehicle)}</h1>
           <p className={styles.sub}>{vehicleSubtitle(vehicle)}</p>
-          {vehicle.owner_name && <p className={styles.owner}>Owner: {vehicle.owner_name}</p>}
+          {ownerLine && <p className={styles.owner}>{ownerLine}</p>}
         </div>
         <button type="button" className={styles.odometer} onClick={onUpdateOdometer}>
           <span className={`${styles.odoValue} num`}>{formatKm(vehicle.odometer_km)}</span>

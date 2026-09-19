@@ -1,0 +1,1 @@
+alter table vehicles add column purchase_year integer;

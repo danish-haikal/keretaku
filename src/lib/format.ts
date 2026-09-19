@@ -12,6 +12,10 @@ const dateFormatter = new Intl.DateTimeFormat(LOCALE, {
   month: 'short',
   year: 'numeric',
 });
+const monthYearFormatter = new Intl.DateTimeFormat(LOCALE, {
+  month: 'short',
+  year: 'numeric',
+});
 
 export function formatRM(amount: number | null | undefined): string {
   return `RM ${rmFormatter.format(Number(amount ?? 0))}`;
@@ -26,7 +30,6 @@ export function formatDate(iso: string | null | undefined): string {
   return dateFormatter.format(parseIsoDate(iso));
 }
 
-/** Display label for a multi-item service visit: its item names, joined. */
 export function serviceLogTitle(log: { service_log_items: { name: string }[] }): string {
   return log.service_log_items.map((i) => i.name).join(', ') || 'Service';
 }
@@ -42,34 +45,91 @@ export function vehicleSubtitle(v: {
   return [v.variant, v.plate_number].filter(Boolean).join(' · ');
 }
 
-/** Parse an <input type="number"> value; empty string becomes null. */
 export function parseNumberInput(value: string): number | null {
   if (value.trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
-/** Trim a text input; empty becomes null (so the DB stores NULL, not ''). */
 export function cleanText(value: string): string | null {
   const t = value.trim();
   return t === '' ? null : t;
 }
 
-/**
- * Parses a 4-digit tyre DOT date code (WWYY — first two digits are the
- * manufacture week, last two are the year) into a comparable/display form.
- * Returns null for anything that isn't exactly 4 digits or has an
- * out-of-range week. Assumes a 20xx year, which covers any tyre made since
- * the 4-digit code format took effect in 2000.
- */
 export function parseTyreDotCode(
   code: string | null | undefined,
-): { week: number; year: number; label: string; sortKey: number } | null {
+): { week: number; year: number; label: string; sortKey: number; monthLabel: string } | null {
   if (!code) return null;
   const match = /^(\d{2})(\d{2})$/.exec(code.trim());
   if (!match) return null;
   const week = Number(match[1]);
   const year = 2000 + Number(match[2]);
   if (week < 1 || week > 53) return null;
-  return { week, year, label: `Week ${week}, ${year}`, sortKey: year * 100 + week };
+  // Approximate the middle day of that week to estimate a calendar month.
+  // Manufacturing DOT weeks aren't strict ISO weeks, so this is a best-effort estimate.
+  const approxDate = new Date(year, 0, 1 + (week - 1) * 7 + 3);
+  return {
+    week,
+    year,
+    label: `Week ${week}, ${year}`,
+    sortKey: year * 100 + week,
+    monthLabel: `~${monthYearFormatter.format(approxDate)}`,
+  };
+}
+
+/**
+ * Hint text for a tyre DOT code field: the parsed week/year + estimated month
+ * once 4 digits are entered, or the format explanation while it's incomplete/invalid.
+ */
+export function formatDotCodeHint(code: string): string {
+  const parsed = parseTyreDotCode(code);
+  if (!parsed) {
+    return '4-digit code near the DOT mark on the sidewall — first 2 digits are the week, last 2 are the year (e.g. 3524 = week 35 of 2024).';
+  }
+  return `${parsed.label} (${parsed.monthLabel})`;
+}
+
+/**
+ * Months/balance remaining on a hire purchase loan, using Start Date + Tenure
+ * as the source of truth (not a manually-typed payment counter, which drifts).
+ * Loan amount is informational only — this does not amortize against it,
+ * since Malaysian hire purchase uses flat-rate interest we haven't modeled.
+ *
+ * Shared between VehicleFormPage (live draft values while editing) and
+ * VehicleDetailPage (the saved vehicle) — previously duplicated in both.
+ */
+export function hirePurchaseRemainingLabel(params: {
+  paidOff: boolean;
+  monthlyPayment: number | null;
+  tenureMonths: number | null;
+  startDate: string | null;
+}): string | null {
+  const { paidOff, monthlyPayment, tenureMonths, startDate } = params;
+  if (paidOff) return null;
+  if (!monthlyPayment || !tenureMonths || !startDate) return null;
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+  const now = new Date();
+  let elapsed =
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) elapsed -= 1;
+  elapsed = Math.max(0, Math.min(tenureMonths, elapsed));
+  const remainingMonths = tenureMonths - elapsed;
+  if (remainingMonths <= 0) return 'Fully paid off, based on start date and tenure.';
+  const remainingBalance = remainingMonths * monthlyPayment;
+  const monthsLabel = remainingMonths === 1 ? '1 month left' : `${remainingMonths} months left`;
+  return `${monthsLabel} · est. ${formatRM(remainingBalance)} remaining`;
+}
+
+/**
+ * "Bought 2020 · 5 years owned" for the vehicle header. Based on calendar
+ * year only, matching the single "purchase year" field (not a full date).
+ */
+export function ownershipLabel(purchaseYear: number | null | undefined): string | null {
+  if (!purchaseYear) return null;
+  const currentYear = new Date().getFullYear();
+  const years = currentYear - purchaseYear;
+  if (years <= 0) return `Bought ${purchaseYear}`;
+  const yearsLabel = years === 1 ? '1 year' : `${years} years`;
+  return `Bought ${purchaseYear} · ${yearsLabel} owned`;
 }
