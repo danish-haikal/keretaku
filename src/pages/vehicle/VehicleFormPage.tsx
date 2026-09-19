@@ -8,6 +8,7 @@ import { ChipSelect, type ChipOption } from '@/components/ui/ChipSelect';
 import { Field, FieldRow, TextInput } from '@/components/ui/Field';
 import { Sheet } from '@/components/ui/Sheet';
 import { ErrorState, LoadingState } from '@/components/ui/StateMessage';
+import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/hooks/useToast';
 import { cleanText, formatRM } from '@/lib/format';
 import {
@@ -150,6 +151,22 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [pressureRear, setPressureRear] = useState(
     vehicle?.tyre_pressure_rear != null ? String(vehicle.tyre_pressure_rear) : '',
   );
+  const [tyreFlSpec, setTyreFlSpec] = useState(vehicle?.tyre_fl_spec ?? '');
+  const [tyreFlYear, setTyreFlYear] = useState(
+    vehicle?.tyre_fl_year != null ? String(vehicle.tyre_fl_year) : '',
+  );
+  const [tyreFrSpec, setTyreFrSpec] = useState(vehicle?.tyre_fr_spec ?? '');
+  const [tyreFrYear, setTyreFrYear] = useState(
+    vehicle?.tyre_fr_year != null ? String(vehicle.tyre_fr_year) : '',
+  );
+  const [tyreRlSpec, setTyreRlSpec] = useState(vehicle?.tyre_rl_spec ?? '');
+  const [tyreRlYear, setTyreRlYear] = useState(
+    vehicle?.tyre_rl_year != null ? String(vehicle.tyre_rl_year) : '',
+  );
+  const [tyreRrSpec, setTyreRrSpec] = useState(vehicle?.tyre_rr_spec ?? '');
+  const [tyreRrYear, setTyreRrYear] = useState(
+    vehicle?.tyre_rr_year != null ? String(vehicle.tyre_rr_year) : '',
+  );
   const [hpLoanAmount, setHpLoanAmount] = useState(
     vehicle?.hire_purchase_loan_amount != null ? String(vehicle.hire_purchase_loan_amount) : '',
   );
@@ -165,6 +182,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [hpLastPaymentDate, setHpLastPaymentDate] = useState(
     vehicle?.hire_purchase_last_payment_date ?? '',
   );
+  const [hpPaidOff, setHpPaidOff] = useState(vehicle?.hire_purchase_paid_off ?? false);
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -205,11 +223,20 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       tyre_pressure_unit: pressureUnit,
       tyre_pressure_front: toNullableNumber(pressureFront),
       tyre_pressure_rear: toNullableNumber(pressureRear),
+      tyre_fl_spec: cleanText(tyreFlSpec),
+      tyre_fl_year: toNullableInt(tyreFlYear),
+      tyre_fr_spec: cleanText(tyreFrSpec),
+      tyre_fr_year: toNullableInt(tyreFrYear),
+      tyre_rl_spec: cleanText(tyreRlSpec),
+      tyre_rl_year: toNullableInt(tyreRlYear),
+      tyre_rr_spec: cleanText(tyreRrSpec),
+      tyre_rr_year: toNullableInt(tyreRrYear),
       hire_purchase_loan_amount: toNullableNumber(hpLoanAmount),
       hire_purchase_monthly_payment: toNullableNumber(hpMonthlyPayment),
       hire_purchase_tenure_months: toNullableInt(hpTenureMonths),
       hire_purchase_start_date: hpStartDate || null,
       hire_purchase_last_payment_date: hpLastPaymentDate || null,
+      hire_purchase_paid_off: hpPaidOff,
     };
 
     try {
@@ -448,76 +475,191 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
         </FieldRow>
 
         <div className={page.sectionHead}>
-          <h2>Hire purchase (optional)</h2>
+          <h2>Tyre specification</h2>
         </div>
 
         <FieldRow>
-          <Field label="Loan amount (RM)">
+          <Field label="Front left size" hint="Size printed on the sidewall, e.g. 175/65/15.">
             {(id) => (
               <TextInput
                 id={id}
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={hpLoanAmount}
-                onChange={(e) => setHpLoanAmount(e.target.value)}
+                placeholder="175/65/15"
+                value={tyreFlSpec}
+                onChange={(e) => setTyreFlSpec(e.target.value)}
               />
             )}
           </Field>
-          <Field label="Monthly payment (RM)">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                value={hpMonthlyPayment}
-                onChange={(e) => setHpMonthlyPayment(e.target.value)}
-              />
-            )}
-          </Field>
-        </FieldRow>
-
-        <FieldRow>
-          <Field label="Tenure (months)">
+          <Field label="Manufacture year">
             {(id) => (
               <TextInput
                 id={id}
                 type="number"
                 inputMode="numeric"
-                value={hpTenureMonths}
-                onChange={(e) => setHpTenureMonths(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Loan start date">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="date"
-                value={hpStartDate}
-                onChange={(e) => setHpStartDate(e.target.value)}
+                placeholder="e.g. 2023"
+                value={tyreFlYear}
+                onChange={(e) => setTyreFlYear(e.target.value)}
               />
             )}
           </Field>
         </FieldRow>
 
-        <Field
-          label="Last payment date"
-          hint={
-            hpSummary ??
-            'Add a start date, tenure and monthly payment to see months/balance remaining.'
-          }
-        >
-          {(id) => (
-            <TextInput
-              id={id}
-              type="date"
-              value={hpLastPaymentDate}
-              onChange={(e) => setHpLastPaymentDate(e.target.value)}
-            />
-          )}
-        </Field>
+        <FieldRow>
+          <Field label="Front right size">
+            {(id) => (
+              <TextInput
+                id={id}
+                placeholder="175/65/15"
+                value={tyreFrSpec}
+                onChange={(e) => setTyreFrSpec(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Manufacture year">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                inputMode="numeric"
+                placeholder="e.g. 2023"
+                value={tyreFrYear}
+                onChange={(e) => setTyreFrYear(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+
+        <FieldRow>
+          <Field label="Rear left size">
+            {(id) => (
+              <TextInput
+                id={id}
+                placeholder="175/65/15"
+                value={tyreRlSpec}
+                onChange={(e) => setTyreRlSpec(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Manufacture year">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                inputMode="numeric"
+                placeholder="e.g. 2023"
+                value={tyreRlYear}
+                onChange={(e) => setTyreRlYear(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+
+        <FieldRow>
+          <Field label="Rear right size">
+            {(id) => (
+              <TextInput
+                id={id}
+                placeholder="175/65/15"
+                value={tyreRrSpec}
+                onChange={(e) => setTyreRrSpec(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Manufacture year">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                inputMode="numeric"
+                placeholder="e.g. 2023"
+                value={tyreRrYear}
+                onChange={(e) => setTyreRrYear(e.target.value)}
+              />
+            )}
+          </Field>
+        </FieldRow>
+
+        <div className={page.sectionHead}>
+          <h2>Hire purchase (optional)</h2>
+        </div>
+
+        <Switch
+          checked={hpPaidOff}
+          onChange={setHpPaidOff}
+          label="Fully paid / no more loan"
+          hint="Turn this on once the loan is settled — hides the fields below and shows a simple status instead. Your old numbers aren't deleted; turn it back off to see them again."
+        />
+
+        {!hpPaidOff && (
+          <>
+            <FieldRow>
+              <Field label="Loan amount (RM)">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={hpLoanAmount}
+                    onChange={(e) => setHpLoanAmount(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Monthly payment (RM)">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    value={hpMonthlyPayment}
+                    onChange={(e) => setHpMonthlyPayment(e.target.value)}
+                  />
+                )}
+              </Field>
+            </FieldRow>
+
+            <FieldRow>
+              <Field label="Tenure (months)">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="number"
+                    inputMode="numeric"
+                    value={hpTenureMonths}
+                    onChange={(e) => setHpTenureMonths(e.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Loan start date">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="date"
+                    value={hpStartDate}
+                    onChange={(e) => setHpStartDate(e.target.value)}
+                  />
+                )}
+              </Field>
+            </FieldRow>
+
+            <Field
+              label="Last payment date"
+              hint={
+                hpSummary ??
+                'Add a start date, tenure and monthly payment to see months/balance remaining.'
+              }
+            >
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="date"
+                  value={hpLastPaymentDate}
+                  onChange={(e) => setHpLastPaymentDate(e.target.value)}
+                />
+              )}
+            </Field>
+          </>
+        )}
 
         {formError && <p className={styles.error}>{formError}</p>}
 

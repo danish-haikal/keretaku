@@ -27,6 +27,7 @@ type DateField = 'road_tax_expiry' | 'insurance_expiry';
 // Uses Start Date + Tenure only; loan amount is informational, not amortized
 // against (flat-rate HP interest isn't modeled here).
 function hirePurchaseRemainingLabel(vehicle: Vehicle): string | null {
+  if (vehicle.hire_purchase_paid_off) return null;
   const { hire_purchase_monthly_payment, hire_purchase_tenure_months, hire_purchase_start_date } =
     vehicle;
   if (!hire_purchase_monthly_payment || !hire_purchase_tenure_months || !hire_purchase_start_date) {
@@ -44,6 +45,35 @@ function hirePurchaseRemainingLabel(vehicle: Vehicle): string | null {
   const remainingBalance = remainingMonths * hire_purchase_monthly_payment;
   const monthsLabel = remainingMonths === 1 ? '1 month left' : `${remainingMonths} months left`;
   return `${monthsLabel} · est. ${formatRM(remainingBalance)} remaining`;
+}
+
+/** Summary for the "Tyre specification" row: the size if all four match
+ * ("Mixed sizes" if not), and the oldest manufacture year across the four,
+ * since that's the tyre closest to needing replacement. */
+function tyreSpecSummary(vehicle: Vehicle): { trailing: string; meta?: string } {
+  const specs = [
+    vehicle.tyre_fl_spec,
+    vehicle.tyre_fr_spec,
+    vehicle.tyre_rl_spec,
+    vehicle.tyre_rr_spec,
+  ];
+  const uniqueSpecs = Array.from(new Set(specs.filter((s): s is string => s != null)));
+  const trailing =
+    uniqueSpecs.length === 0
+      ? '—'
+      : uniqueSpecs.length === 1
+        ? (uniqueSpecs[0] ?? '—')
+        : 'Mixed sizes';
+
+  const years = [
+    vehicle.tyre_fl_year,
+    vehicle.tyre_fr_year,
+    vehicle.tyre_rl_year,
+    vehicle.tyre_rr_year,
+  ].filter((y): y is number => y != null);
+  const meta = years.length > 0 ? `Oldest: ${Math.min(...years)}` : undefined;
+
+  return { trailing, meta };
 }
 
 export function VehicleDetailPage() {
@@ -92,11 +122,24 @@ export function VehicleDetailPage() {
   }
 
   const hasTyreInfo = vehicle.tyre_pressure_front != null || vehicle.tyre_pressure_rear != null;
+  const hasTyreSpecInfo =
+    vehicle.tyre_fl_spec != null ||
+    vehicle.tyre_fl_year != null ||
+    vehicle.tyre_fr_spec != null ||
+    vehicle.tyre_fr_year != null ||
+    vehicle.tyre_rl_spec != null ||
+    vehicle.tyre_rl_year != null ||
+    vehicle.tyre_rr_spec != null ||
+    vehicle.tyre_rr_year != null;
+  const tyreSpec = hasTyreSpecInfo ? tyreSpecSummary(vehicle) : null;
+  const hasHirePurchaseInfo =
+    vehicle.hire_purchase_paid_off || vehicle.hire_purchase_monthly_payment != null;
   const hasVehicleInfo =
     vehicle.tank_capacity_liters != null ||
     hasTyreInfo ||
+    hasTyreSpecInfo ||
     vehicle.ncd_rate != null ||
-    vehicle.hire_purchase_monthly_payment != null;
+    hasHirePurchaseInfo;
 
   return (
     <div className={styles.page}>
@@ -142,6 +185,16 @@ export function VehicleDetailPage() {
                 onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
               />
             )}
+            {tyreSpec && (
+              <ListRow
+                icon="tyre"
+                title="Tyre specification"
+                meta={tyreSpec.meta}
+                trailing={tyreSpec.trailing}
+                chevron
+                onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
+              />
+            )}
             {vehicle.ncd_rate != null && (
               <ListRow
                 icon="shield"
@@ -151,12 +204,22 @@ export function VehicleDetailPage() {
                 onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
               />
             )}
-            {vehicle.hire_purchase_monthly_payment != null && (
+            {hasHirePurchaseInfo && (
               <ListRow
                 icon="wallet"
                 title="Hire purchase"
-                meta={hirePurchaseRemainingLabel(vehicle) ?? undefined}
-                trailing={`${formatRM(vehicle.hire_purchase_monthly_payment)}/mo`}
+                meta={
+                  vehicle.hire_purchase_paid_off
+                    ? undefined
+                    : (hirePurchaseRemainingLabel(vehicle) ?? undefined)
+                }
+                trailing={
+                  vehicle.hire_purchase_paid_off
+                    ? 'No active loan'
+                    : vehicle.hire_purchase_monthly_payment != null
+                      ? `${formatRM(vehicle.hire_purchase_monthly_payment)}/mo`
+                      : '—'
+                }
                 chevron
                 onClick={() => navigate(`/vehicles/${vehicle.id}/edit`)}
               />
@@ -292,16 +355,32 @@ export function VehicleDetailPage() {
                     </>
                   }
                   footer={
-                    log.next_due_km != null || log.next_due_date ? (
-                      <span className={`${styles.nextDue} num`}>
-                        Next:{' '}
-                        {[
-                          log.next_due_km != null ? formatKm(log.next_due_km) : null,
-                          log.next_due_date ? formatDate(log.next_due_date) : null,
-                        ]
-                          .filter(Boolean)
-                          .join(' or ')}
-                      </span>
+                    log.notes || log.next_due_km != null || log.next_due_date ? (
+                      <>
+                        {log.notes && (
+                          <p
+                            style={{
+                              margin: '4px 0 0',
+                              fontSize: '0.8125rem',
+                              color: 'var(--ink-soft, #6b6058)',
+                              fontStyle: 'italic',
+                            }}
+                          >
+                            {log.notes}
+                          </p>
+                        )}
+                        {(log.next_due_km != null || log.next_due_date) && (
+                          <span className={`${styles.nextDue} num`}>
+                            Next:{' '}
+                            {[
+                              log.next_due_km != null ? formatKm(log.next_due_km) : null,
+                              log.next_due_date ? formatDate(log.next_due_date) : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' or ')}
+                          </span>
+                        )}
+                      </>
                     ) : null
                   }
                   trailing={formatRM(log.cost)}

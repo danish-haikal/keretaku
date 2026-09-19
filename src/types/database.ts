@@ -46,6 +46,14 @@ export interface Vehicle {
   tyre_pressure_unit: TyrePressureUnit;
   tyre_pressure_front: number | null;
   tyre_pressure_rear: number | null;
+  tyre_fl_spec: string | null;
+  tyre_fl_year: number | null;
+  tyre_fr_spec: string | null;
+  tyre_fr_year: number | null;
+  tyre_rl_spec: string | null;
+  tyre_rl_year: number | null;
+  tyre_rr_spec: string | null;
+  tyre_rr_year: number | null;
   ncd_rate: number | null;
   tank_capacity_liters: number | null;
   hire_purchase_loan_amount: number | null;
@@ -53,6 +61,7 @@ export interface Vehicle {
   hire_purchase_tenure_months: number | null;
   hire_purchase_start_date: string | null;
   hire_purchase_last_payment_date: string | null;
+  hire_purchase_paid_off: boolean;
   created_at: string;
   updated_at: string;
 }
