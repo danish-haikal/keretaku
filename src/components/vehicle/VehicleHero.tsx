@@ -38,6 +38,7 @@ export function VehicleHero({ vehicle, onUpdateOdometer }: VehicleHeroProps) {
         <div className={styles.names}>
           <h1 className={styles.name}>{vehicleTitle(vehicle)}</h1>
           <p className={styles.sub}>{vehicleSubtitle(vehicle)}</p>
+          {vehicle.owner_name && <p className={styles.owner}>Owner: {vehicle.owner_name}</p>}
         </div>
         <button type="button" className={styles.odometer} onClick={onUpdateOdometer}>
           <span className={`${styles.odoValue} num`}>{formatKm(vehicle.odometer_km)}</span>

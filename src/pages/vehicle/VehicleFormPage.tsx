@@ -134,6 +134,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const [variant, setVariant] = useState(vehicle?.variant ?? '');
   const [year, setYear] = useState(String(vehicle?.year ?? new Date().getFullYear()));
   const [plate, setPlate] = useState(vehicle?.plate_number ?? '');
+  const [ownerName, setOwnerName] = useState(vehicle?.owner_name ?? '');
   const [roadTax, setRoadTax] = useState(vehicle?.road_tax_expiry ?? '');
   const [insurance, setInsurance] = useState(vehicle?.insurance_expiry ?? '');
   const [ncdRate, setNcdRate] = useState(vehicle?.ncd_rate != null ? String(vehicle.ncd_rate) : '');
@@ -210,6 +211,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       variant: cleanText(variant),
       year: yearNumber,
       plate_number: cleanText(plate),
+      owner_name: cleanText(ownerName),
       road_tax_expiry: roadTax || null,
       insurance_expiry: insurance || null,
       odometer_km: Math.max(0, Math.round(Number(odometer) || 0)),
@@ -345,6 +347,20 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               placeholder="e.g. WXY 1234"
               value={plate}
               onChange={(e) => setPlate(e.target.value)}
+            />
+          )}
+        </Field>
+
+        <Field
+          label="Owner"
+          hint="Who this vehicle belongs to — handy for the family to know at a glance, e.g. for checking summons under the right name."
+        >
+          {(id) => (
+            <TextInput
+              id={id}
+              placeholder="e.g. Ibu"
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
             />
           )}
         </Field>

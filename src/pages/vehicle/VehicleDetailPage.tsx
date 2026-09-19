@@ -13,6 +13,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { ErrorState, LoadingState } from '@/components/ui/StateMessage';
 import { RenewalChips } from '@/components/vehicle/RenewalChips';
 import { SpendingSummary } from '@/components/vehicle/SpendingSummary';
+import { VehicleDocuments } from '@/components/vehicle/VehicleDocuments';
 import { VehicleHero } from '@/components/vehicle/VehicleHero';
 import { VehicleTabs } from '@/components/vehicle/VehicleTabs';
 import { tabsForFuelType, type VehicleTab } from '@/components/vehicle/tabDefinitions';
@@ -190,6 +191,10 @@ export function VehicleDetailPage() {
           setDateDraft(vehicle[field] ?? '');
         }}
       />
+
+      <div className={page.body}>
+        <VehicleDocuments vehicle={vehicle} />
+      </div>
 
       {hasVehicleInfo && (
         <div className={page.body}>

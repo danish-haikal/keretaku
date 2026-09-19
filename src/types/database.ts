@@ -37,10 +37,13 @@ export interface Vehicle {
   variant: string | null;
   year: number;
   plate_number: string | null;
+  owner_name: string | null;
   road_tax_expiry: string | null;
   insurance_expiry: string | null;
   road_tax_reminder_dismissed_at: string | null;
   insurance_reminder_dismissed_at: string | null;
+  road_tax_photo_path: string | null;
+  insurance_photo_path: string | null;
   odometer_km: number;
   rim_type: RimType;
   tyre_pressure_unit: TyrePressureUnit;
@@ -74,6 +77,11 @@ export interface Vehicle {
  * road_tax_reminder_dismissed_at / insurance_reminder_dismissed_at are
  * excluded — they're only ever set via useDismissRenewalReminder(), so
  * VehicleFormPage's explicit input object never needs to know about them.
+ *
+ * road_tax_photo_path / insurance_photo_path are excluded — they're only
+ * ever set via useUploadVehicleDocument() / useDeleteVehicleDocument(), so
+ * saving the vehicle form never touches (or accidentally clears) a stored
+ * document photo.
  */
 export type VehicleInput = Omit<
   Vehicle,
@@ -83,6 +91,8 @@ export type VehicleInput = Omit<
   | 'updated_at'
   | 'road_tax_reminder_dismissed_at'
   | 'insurance_reminder_dismissed_at'
+  | 'road_tax_photo_path'
+  | 'insurance_photo_path'
 >;
 
 export interface FuelLog {
